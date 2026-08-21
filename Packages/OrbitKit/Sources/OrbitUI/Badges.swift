@@ -36,7 +36,11 @@ public struct VerifiedBadge: View {
     }
 }
 
-/// Delivery ticks. `sending` shows a clock, matching Messages and Telegram.
+/// Delivery state: a clock while sending, one tick for sent, two for read.
+///
+/// Deliberately not `checkmark.circle.fill` — filled in the tint colour it is
+/// almost indistinguishable from `checkmark.seal.fill` on a verified peer, and
+/// the two appear within a couple of rows of each other in the chat list.
 public struct DeliveryTicks: View {
     private let delivery: Message.Delivery
 
@@ -45,16 +49,24 @@ public struct DeliveryTicks: View {
     }
 
     public var body: some View {
-        Image(systemName: symbol)
-            .font(.caption2)
+        content
+            .font(.caption2.weight(.semibold))
             .accessibilityLabel(label)
     }
 
-    private var symbol: String {
+    @ViewBuilder
+    private var content: some View {
         switch delivery {
-        case .sending: "clock"
-        case .sent: "checkmark"
-        case .read: "checkmark.circle.fill"
+        case .sending:
+            Image(systemName: "clock")
+        case .sent:
+            Image(systemName: "checkmark")
+        case .read:
+            // SF Symbols has no double checkmark, so two are overlapped.
+            HStack(spacing: -3.5) {
+                Image(systemName: "checkmark")
+                Image(systemName: "checkmark")
+            }
         }
     }
 
