@@ -2,32 +2,61 @@ import OrbitCore
 import OrbitUI
 import SwiftUI
 
-/// Tab container. Built from a stock `TabView`, so on iOS 26 the system draws
-/// it with Liquid Glass and handles the scroll-edge behaviour itself — there is
-/// no custom bar to get wrong.
+public enum AppTab: Hashable, CaseIterable {
+    case chats
+    case contacts
+    case settings
+}
+
+/// The floating bar, assembled from live state. Each screen hosts its own copy
+/// as a bottom safe-area inset rather than RootView overlaying one on top of
+/// everything — that way pushing a conversation takes the bar away with it,
+/// and the composer is never fighting a bar floating over it.
+struct AppTabBar: View {
+    @Environment(ChatStore.self) private var store
+    @Environment(AppSettings.self) private var settings
+
+    @Binding var selection: AppTab
+    var onSearch: () -> Void
+
+    var body: some View {
+        FloatingTabBar(
+            selection: $selection,
+            items: [
+                .init(
+                    id: .chats,
+                    title: "Chats",
+                    systemImage: "bubble.left.and.bubble.right.fill",
+                    badge: settings.notificationsEnabled ? store.totalUnreadCount : 0
+                ),
+                .init(id: .contacts, title: "Contacts", systemImage: "person.crop.circle"),
+                .init(id: .settings, title: "Settings", systemImage: "gearshape.fill")
+            ],
+            trailingAction: onSearch
+        )
+    }
+}
+
 public struct RootView: View {
     @Environment(AppSettings.self) private var settings
-    @Environment(ChatStore.self) private var store
+
+    @State private var tab: AppTab = .chats
 
     public init() {}
 
     public var body: some View {
-        TabView {
-            ChatListView()
-                .tabItem {
-                    Label("Chats", systemImage: "bubble.left.and.bubble.right.fill")
-                }
-                .badge(settings.notificationsEnabled ? store.totalUnreadCount : 0)
+        TabView(selection: $tab) {
+            ChatListView(tab: $tab)
+                .tag(AppTab.chats)
+                .toolbar(.hidden, for: .tabBar)
 
-            ContactsView()
-                .tabItem {
-                    Label("Contacts", systemImage: "person.crop.circle")
-                }
+            ContactsView(tab: $tab)
+                .tag(AppTab.contacts)
+                .toolbar(.hidden, for: .tabBar)
 
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape.fill")
-                }
+            SettingsView(tab: $tab)
+                .tag(AppTab.settings)
+                .toolbar(.hidden, for: .tabBar)
         }
         .preferredColorScheme(colorScheme)
     }
@@ -45,10 +74,15 @@ public struct RootView: View {
 public struct ContactsView: View {
     @Environment(ChatStore.self) private var store
 
+    @Binding var tab: AppTab
+
     @State private var search = ""
+    @State private var isSearching = false
     @State private var path: [String] = []
 
-    public init() {}
+    public init(tab: Binding<AppTab>) {
+        _tab = tab
+    }
 
     public var body: some View {
         NavigationStack(path: $path) {
@@ -80,11 +114,15 @@ public struct ContactsView: View {
             }
             .listStyle(.plain)
             .navigationTitle("Contacts")
-            .searchable(text: $search, prompt: "Search")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $search, isPresented: $isSearching, prompt: "Search")
             .overlay {
                 if sections.isEmpty {
                     ContentUnavailableView.search(text: search)
                 }
+            }
+            .safeAreaInset(edge: .bottom) {
+                AppTabBar(selection: $tab) { isSearching = true }
             }
             .navigationDestination(for: String.self) { chatID in
                 ConversationView(chatID: chatID)

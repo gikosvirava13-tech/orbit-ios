@@ -9,14 +9,20 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15
-    timeout-minutes: 30
+    # Liquid Glass (`glassEffect`) needs the iOS 26 SDK, which means Xcode 26.
+    runs-on: macos-26
+    timeout-minutes: 40
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Show Xcode version
-        run: xcodebuild -version
+      # Runner images ship several Xcodes; always take the newest so the
+      # iOS 26 SDK is the one in use.
+      - name: Select newest Xcode
+        run: |
+          ls -d /Applications/Xcode*.app
+          sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          xcodebuild -version
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -24,49 +30,58 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      # Compiles the app and all three package targets. This is the step that
-      # surfaces every syntax and type error — read its log first.
+      # Device names change with every Xcode, so resolve one at runtime
+      # instead of pinning "iPhone 16".
+      - name: Pick a simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available \
+            | grep -E "^\s+iPhone" \
+            | tail -1 \
+            | grep -oE "[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}")
+          if [ -z "$UDID" ]; then
+            echo "No iPhone simulator available"; xcrun simctl list devices available; exit 1
+          fi
+          NAME=$(xcrun simctl list devices available | grep "$UDID" | sed -E 's/^ *([^(]+).*/\1/' | xargs)
+          echo "Using $NAME ($UDID)"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
       - name: Build
         run: |
           set -o pipefail
           xcodebuild build \
             -project Orbit.xcodeproj \
             -scheme Orbit \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO
 
-      # OrbitCore has no UI, so these prove the data layer independently.
       - name: Test OrbitCore
         run: |
           set -o pipefail
           xcodebuild test \
             -scheme OrbitKit-Package \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
             CODE_SIGNING_ALLOWED=NO
         working-directory: Packages/OrbitKit
 
-      # Launches the built app in a simulator and captures what it looks like,
-      # in light and dark. Download these from the run's Artifacts section.
       - name: Screenshot the running app
         if: success()
         run: |
           mkdir -p screenshots
-          DEVICE=$(xcrun simctl list devices available | grep -m1 "iPhone 16 (" | grep -oE "[0-9A-F-]{36}")
-          echo "Using simulator $DEVICE"
-          xcrun simctl boot "$DEVICE" || true
-          xcrun simctl bootstatus "$DEVICE" -b
+          UDID="${{ steps.sim.outputs.udid }}"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
 
           APP=$(find build/Build/Products -name "Orbit.app" -maxdepth 3 | head -1)
-          echo "Installing $APP"
-          xcrun simctl install "$DEVICE" "$APP"
+          xcrun simctl install "$UDID" "$APP"
 
           for MODE in light dark; do
-            xcrun simctl ui "$DEVICE" appearance "$MODE"
-            xcrun simctl launch "$DEVICE" com.orbit.app
-            sleep 6
-            xcrun simctl io "$DEVICE" screenshot "screenshots/chats-$MODE.png"
-            xcrun simctl terminate "$DEVICE" com.orbit.app || true
+            xcrun simctl ui "$UDID" appearance "$MODE"
+            xcrun simctl launch "$UDID" com.orbit.app
+            sleep 7
+            xcrun simctl io "$UDID" screenshot "screenshots/chats-$MODE.png"
+            xcrun simctl terminate "$UDID" com.orbit.app || true
           done
 
       - name: Upload screenshots
@@ -76,12 +91,10 @@ jobs:
           name: simulator-screenshots
           path: screenshots/*.png
 
-      # Kept even when the build fails — this is the log to send back.
       - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-logs
-          path: |
-            build/Logs/**
+          path: build/Logs/**
           if-no-files-found: ignore

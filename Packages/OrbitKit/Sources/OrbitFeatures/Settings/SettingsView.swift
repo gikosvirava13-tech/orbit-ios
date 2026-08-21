@@ -6,9 +6,13 @@ public struct SettingsView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(ChatStore.self) private var store
 
+    @Binding var tab: AppTab
+
     @State private var isEditingProfile = false
 
-    public init() {}
+    public init(tab: Binding<AppTab>) {
+        _tab = tab
+    }
 
     public var body: some View {
         @Bindable var settings = settings
@@ -60,6 +64,10 @@ public struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .safeAreaInset(edge: .bottom) {
+                AppTabBar(selection: $tab) { tab = .chats }
+            }
             .sheet(isPresented: $isEditingProfile) {
                 EditProfileSheet()
             }
@@ -154,7 +162,15 @@ struct EditProfileSheet: View {
 }
 
 #Preview {
-    SettingsView()
+    struct Harness: View {
+        @State private var tab: AppTab = .settings
+
+        var body: some View {
+            SettingsView(tab: $tab)
+        }
+    }
+
+    return Harness()
         .environment(AppSettings())
         .environment(ChatStore())
 }

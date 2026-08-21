@@ -87,6 +87,15 @@ public final class ChatStore {
         chats[index].isMuted.toggle()
     }
 
+    /// Removes conversations by id rather than by index, because the list on
+    /// screen is filtered and sorted and its offsets do not match ours.
+    public func delete(chatIDs: [String]) {
+        guard !chatIDs.isEmpty else { return }
+        let doomed = Set(chatIDs)
+
+        chats.removeAll { doomed.contains($0.id) }
+    }
+
     // MARK: Private
 
     private func index(of chatID: String) -> Int? {

@@ -5,12 +5,17 @@ import SwiftUI
 public struct ChatListView: View {
     @Environment(ChatStore.self) private var store
 
+    @Binding var tab: AppTab
+
     @State private var search = ""
+    @State private var isSearching = false
     @State private var scope: ChatListFilter = .all
     @State private var path: [String] = []
     @State private var isComposing = false
 
-    public init() {}
+    public init(tab: Binding<AppTab>) {
+        _tab = tab
+    }
 
     public var body: some View {
         NavigationStack(path: $path) {
@@ -46,12 +51,19 @@ public struct ChatListView: View {
                         .tint(Color(.systemOrange))
                     }
                 }
+                .onDelete(perform: delete)
             }
             .listStyle(.plain)
             .navigationTitle("Chats")
-            .searchable(text: $search, prompt: "Search chats and messages")
-            // Apple's own scope bar — the segmented control appears under the
-            // search field while searching, so folders cost no permanent chrome.
+            // Inline keeps the title centred between the leading Edit control
+            // and the trailing actions, which is where the eye expects it once
+            // there is a control on both sides.
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(
+                text: $search,
+                isPresented: $isSearching,
+                prompt: "Search chats and messages"
+            )
             .searchScopes($scope) {
                 ForEach(ChatListFilter.allCases) { filter in
                     Text(filter.rawValue).tag(filter)
@@ -63,6 +75,12 @@ public struct ChatListView: View {
                 }
             }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    EditButton()
+                }
+                // On iOS 26 the system renders toolbar items as Liquid Glass
+                // and merges a group into one capsule, so this needs no
+                // styling of its own.
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         isComposing = true
@@ -70,6 +88,9 @@ public struct ChatListView: View {
                         Label("New chat", systemImage: "square.and.pencil")
                     }
                 }
+            }
+            .safeAreaInset(edge: .bottom) {
+                AppTabBar(selection: $tab) { isSearching = true }
             }
             .navigationDestination(for: String.self) { chatID in
                 ConversationView(chatID: chatID)
@@ -86,6 +107,12 @@ public struct ChatListView: View {
 
     private var visibleChats: [Chat] {
         store.sorted(filter: search.isEmpty ? .all : scope, search: search)
+    }
+
+    private func delete(at offsets: IndexSet) {
+        // The list is filtered and sorted, so offsets are resolved against what
+        // is on screen rather than against the store's own order.
+        store.delete(chatIDs: offsets.map { visibleChats[$0].id })
     }
 
     @ViewBuilder
@@ -134,8 +161,8 @@ struct NewChatSheet: View {
             .navigationTitle("New Chat")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    CloseButton { dismiss() }
                 }
             }
         }
@@ -144,7 +171,15 @@ struct NewChatSheet: View {
 }
 
 #Preview {
-    ChatListView()
+    struct Harness: View {
+        @State private var tab: AppTab = .chats
+
+        var body: some View {
+            ChatListView(tab: $tab)
+        }
+    }
+
+    return Harness()
         .environment(ChatStore())
         .environment(AppSettings())
 }

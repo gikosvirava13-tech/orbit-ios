@@ -72,6 +72,28 @@ final class ChatStoreTests: XCTestCase {
         XCTAssertTrue(store.sorted(filter: .unread, search: "").allSatisfy { $0.unreadCount > 0 })
     }
 
+    func testDeleteRemovesOnlyTheNamedChats() {
+        let store = ChatStore()
+        let before = store.chats.count
+
+        store.delete(chatIDs: ["c1", "c9"])
+
+        XCTAssertEqual(store.chats.count, before - 2)
+        XCTAssertNil(store.chat(id: "c1"))
+        XCTAssertNil(store.chat(id: "c9"))
+        XCTAssertNotNil(store.chat(id: "c2"))
+    }
+
+    func testDeleteIgnoresUnknownIDs() {
+        let store = ChatStore()
+        let before = store.chats.count
+
+        store.delete(chatIDs: ["nope"])
+        store.delete(chatIDs: [])
+
+        XCTAssertEqual(store.chats.count, before)
+    }
+
     func testGroupPreviewIsPrefixedWithAuthor() {
         let store = ChatStore()
 
