@@ -1,4 +1,4 @@
-# Orbit — iOS
+# Totem — iOS
 
 A native SwiftUI messaging app, structured the way `telegram-ios` is: a modular
 package graph with the data layer, the design system and the screens in separate
@@ -13,7 +13,7 @@ That means:
 - it has **never been run**
 - nothing has been visually reviewed
 
-Expect to fix compile errors on the first build. The logic in `OrbitCore` is
+Expect to fix compile errors on the first build. The logic in `TotemCore` is
 covered by tests you can run immediately (`⌘U`) to shake out the data layer
 before you look at any UI.
 
@@ -23,15 +23,15 @@ Requires macOS with Xcode 15 or newer.
 
 ```bash
 brew install xcodegen   # once
-cd orbit-ios
-xcodegen generate       # writes Orbit.xcodeproj
-open Orbit.xcodeproj
+cd orbit-ios   # the repo is still named orbit-ios; the app is Totem
+xcodegen generate       # writes Totem.xcodeproj
+open Totem.xcodeproj
 ```
 
 Set a signing team in **Signing & Capabilities** (or in `project.yml`), then run.
 
 If you would rather not use XcodeGen: create a new iOS App in Xcode, delete its
-`ContentView.swift`, drag `App/OrbitApp.swift` in, then add `Packages/OrbitKit`
+`ContentView.swift`, drag `App/TotemApp.swift` in, then add `Packages/TotemKit`
 via **File ▸ Add Package Dependencies ▸ Add Local**.
 
 ## Structure
@@ -41,9 +41,9 @@ independently buildable frameworks. Same idea, three targets instead of dozens:
 
 | Target | Telegram equivalent | Contains |
 | --- | --- | --- |
-| `OrbitCore` | `TelegramCore` + `Postbox` | `Peer`, `Message`, `Chat`, `ChatStore`, `AppSettings`, date formatting. **No SwiftUI import.** |
-| `OrbitUI` | `Display` | `Theme`, `AvatarView`, badges, typing indicator. |
-| `OrbitFeatures` | `TelegramUI` | Chat list, conversation, contacts, settings. |
+| `TotemCore` | `TelegramCore` + `Postbox` | `Peer`, `Message`, `Chat`, `ChatStore`, `AppSettings`, date formatting. **No SwiftUI import.** |
+| `TotemUI` | `Display` | `Theme`, `AvatarView`, badges, typing indicator. |
+| `TotemFeatures` | `TelegramUI` | Chat list, conversation, contacts, settings. |
 
 Dependencies only point downwards: `Features → UI → Core`.
 
@@ -80,7 +80,7 @@ transport, presence and media storage — a separate build from this one.
 
 ## Tests
 
-`Packages/OrbitKit/Tests/OrbitCoreTests` covers send/trim behaviour, unread
+`Packages/TotemKit/Tests/TotemCoreTests` covers send/trim behaviour, unread
 badge maths with muting, pinned-first ordering, search across name and preview,
 filters by peer kind, group preview prefixing, and day bucketing. These run
 without a simulator.

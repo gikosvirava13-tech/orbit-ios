@@ -52,20 +52,20 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild build \
-            -project Orbit.xcodeproj \
-            -scheme Orbit \
+            -project Totem.xcodeproj \
+            -scheme Totem \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee xcodebuild-build.log
 
-      - name: Test OrbitCore
+      - name: Test TotemCore
         run: |
           set -o pipefail
           xcodebuild test \
-            -scheme OrbitKit-Package \
+            -scheme TotemKit-Package \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee ../../xcodebuild-test.log
-        working-directory: Packages/OrbitKit
+        working-directory: Packages/TotemKit
 
       # Prints just the diagnostics into the step output, so the failure is
       # readable on the Actions page without downloading anything.
@@ -91,7 +91,7 @@ jobs:
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
 
-          APP=$(find build/Build/Products -name "Orbit.app" -maxdepth 3 | head -1)
+          APP=$(find build/Build/Products -name "Totem.app" -maxdepth 3 | head -1)
           xcrun simctl install "$UDID" "$APP"
 
           # Every screen the app has. Keep in step with ScreenshotRoute —
@@ -105,14 +105,14 @@ jobs:
           for MODE in light dark; do
             xcrun simctl ui "$UDID" appearance "$MODE"
             for ROUTE in $ROUTES; do
-              xcrun simctl terminate "$UDID" com.orbit.app 2>/dev/null || true
-              xcrun simctl launch "$UDID" com.orbit.app -uiRoute "$ROUTE"
+              xcrun simctl terminate "$UDID" com.totem.app 2>/dev/null || true
+              xcrun simctl launch "$UDID" com.totem.app -uiRoute "$ROUTE"
               sleep 4
               xcrun simctl io "$UDID" screenshot "screenshots/$MODE-$ROUTE.png"
             done
           done
 
-          xcrun simctl terminate "$UDID" com.orbit.app 2>/dev/null || true
+          xcrun simctl terminate "$UDID" com.totem.app 2>/dev/null || true
           ls -la screenshots
 
       - name: Upload screenshots
@@ -142,10 +142,10 @@ jobs:
 
           set +e
           xcodebuild test \
-            -project Orbit.xcodeproj \
-            -scheme Orbit \
+            -project Totem.xcodeproj \
+            -scheme Totem \
             -destination "id=$UDID" \
-            -only-testing:OrbitUITests \
+            -only-testing:TotemUITests \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee xcodebuild-uitest.log | tail -n 25
           STATUS=${PIPESTATUS[0]}
           set -e
@@ -176,30 +176,30 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild archive \
-            -project Orbit.xcodeproj \
-            -scheme Orbit \
+            -project Totem.xcodeproj \
+            -scheme Totem \
             -destination 'generic/platform=iOS' \
-            -archivePath build/Orbit.xcarchive \
+            -archivePath build/Totem.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             2>&1 | tee xcodebuild-archive.log | tail -n 15
 
-          APP="build/Orbit.xcarchive/Products/Applications/Orbit.app"
+          APP="build/Totem.xcarchive/Products/Applications/Totem.app"
           test -d "$APP" || { echo "archive produced no app"; exit 1; }
 
           rm -rf Payload
           mkdir -p Payload
           cp -R "$APP" Payload/
-          zip -qry Orbit-unsigned.ipa Payload
-          ls -lh Orbit-unsigned.ipa
+          zip -qry Totem-unsigned.ipa Payload
+          ls -lh Totem-unsigned.ipa
 
       - name: Upload IPA
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Orbit-unsigned-ipa
-          path: Orbit-unsigned.ipa
+          name: Totem-unsigned-ipa
+          path: Totem-unsigned.ipa
 
       - name: Upload build logs
         if: always()

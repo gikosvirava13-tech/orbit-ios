@@ -1,11 +1,11 @@
-# XcodeGen spec — `xcodegen generate` produces Orbit.xcodeproj.
+# XcodeGen spec — `xcodegen generate` produces Totem.xcodeproj.
 #
 # The project file is generated rather than committed so there is no .pbxproj
 # to merge-conflict over, which is the same reason telegram-ios generates its
 # project from Bazel rather than checking one in.
-name: Orbit
+name: Totem
 options:
-  bundleIdPrefix: com.orbit
+  bundleIdPrefix: com.totem
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
@@ -21,41 +21,41 @@ settings:
     SWIFT_STRICT_CONCURRENCY: complete
 
 packages:
-  OrbitKit:
-    path: Packages/OrbitKit
+  TotemKit:
+    path: Packages/TotemKit
 
 # Declared explicitly so CI can rely on the scheme name existing.
 schemes:
-  Orbit:
+  Totem:
     build:
       targets:
-        Orbit: all
-        OrbitUITests: [test]
+        Totem: all
+        TotemUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - OrbitUITests
+        - TotemUITests
 
 targets:
-  Orbit:
+  Totem:
     type: application
     platform: iOS
     sources:
       - path: App
     dependencies:
-      - package: OrbitKit
-        product: OrbitCore
-      - package: OrbitKit
-        product: OrbitUI
-      - package: OrbitKit
-        product: OrbitFeatures
+      - package: TotemKit
+        product: TotemCore
+      - package: TotemKit
+        product: TotemUI
+      - package: TotemKit
+        product: TotemFeatures
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.orbit.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.totem.app
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Orbit
+        INFOPLIST_KEY_CFBundleDisplayName: Totem
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: >-
           UIInterfaceOrientationPortrait
@@ -65,16 +65,16 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
 
   # Exists to drive the app for the recorded tour, not to test behaviour —
-  # the logic tests live in OrbitCoreTests and need no simulator.
-  OrbitUITests:
+  # the logic tests live in TotemCoreTests and need no simulator.
+  TotemUITests:
     type: bundle.ui-testing
     platform: iOS
     sources:
       - path: UITests
     dependencies:
-      - target: Orbit
+      - target: Totem
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.orbit.app.uitests
-        TEST_TARGET_NAME: Orbit
+        PRODUCT_BUNDLE_IDENTIFIER: com.totem.app.uitests
+        TEST_TARGET_NAME: Totem
         GENERATE_INFOPLIST_FILE: YES

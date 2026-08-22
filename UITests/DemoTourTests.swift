@@ -116,7 +116,7 @@ final class DemoTourTests: XCTestCase {
             beat(1.0)
 
             // Re-tinting: every control, bubble and bar in the app follows.
-            tapIfPresent(app.buttons["Purple"].firstMatch)
+            tapIfPresent(app.buttons["Orchid"].firstMatch)
             beat(0.9)
             tapIfPresent(app.buttons["Mint"].firstMatch)
             beat(0.9)
