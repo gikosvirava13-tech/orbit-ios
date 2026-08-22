@@ -66,7 +66,7 @@ public struct ProfileView: View {
 
     private var detailsCard: some View {
         VStack(spacing: 0) {
-            detailRow(label: "mobile", value: settings.phoneNumber, trailing: nil)
+            detailRow(label: "mobile", value: settings.phoneNumber) { EmptyView() }
 
             Divider().padding(.leading, 16)
 
@@ -85,10 +85,12 @@ public struct ProfileView: View {
         .padding(.horizontal, 16)
     }
 
-    private func detailRow(
+    /// Generic over the trailing content rather than taking `some View` with a
+    /// default — an opaque parameter type cannot carry a default argument.
+    private func detailRow<Trailing: View>(
         label: String,
         value: String,
-        @ViewBuilder trailing: () -> some View = { EmptyView() }
+        @ViewBuilder trailing: () -> Trailing
     ) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {

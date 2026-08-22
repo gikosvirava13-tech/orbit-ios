@@ -28,21 +28,23 @@ public final class ChatStore {
 
     // MARK: Calls
 
+    /// `self.calls` throughout: a property and a method share the base name
+    /// here, and the bare identifier is ambiguous inside these bodies.
     public func calls(filter: CallFilter) -> [CallRecord] {
-        calls.filter { filter.matches($0) }.sorted { $0.date > $1.date }
+        self.calls.filter { filter.matches($0) }.sorted { $0.date > $1.date }
     }
 
     /// `filter().count` rather than `count(where:)`, which needs the Swift 6
     /// stdlib and so is unavailable on our iOS 17 deployment target.
     public var missedCallCount: Int {
-        calls.filter(\.isMissed).count
+        self.calls.filter(\.isMissed).count
     }
 
     public func deleteCalls(ids: [String]) {
         guard !ids.isEmpty else { return }
         let doomed = Set(ids)
 
-        calls.removeAll { doomed.contains($0.id) }
+        self.calls.removeAll { doomed.contains($0.id) }
     }
 
     // MARK: Reads

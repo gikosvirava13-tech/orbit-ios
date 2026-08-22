@@ -46,6 +46,8 @@ jobs:
           echo "Using $NAME ($UDID)"
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
+      # Tee to a plain-text file. The .xcactivitylog artifact is a truncated
+      # binary blob that does not contain the diagnostics; this does.
       - name: Build
         run: |
           set -o pipefail
@@ -54,7 +56,7 @@ jobs:
             -scheme Orbit \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee xcodebuild-build.log
 
       - name: Test OrbitCore
         run: |
@@ -62,8 +64,21 @@ jobs:
           xcodebuild test \
             -scheme OrbitKit-Package \
             -destination "id=${{ steps.sim.outputs.udid }}" \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee ../../xcodebuild-test.log
         working-directory: Packages/OrbitKit
+
+      # Prints just the diagnostics into the step output, so the failure is
+      # readable on the Actions page without downloading anything.
+      - name: Diagnostics
+        if: failure()
+        run: |
+          echo "::group::Errors"
+          grep -hnE "error:|fatal error:|Undefined symbol|linker command failed" \
+            xcodebuild-*.log 2>/dev/null | head -80 || echo "no error lines found"
+          echo "::endgroup::"
+          echo "::group::Last 60 lines"
+          tail -n 60 xcodebuild-build.log 2>/dev/null || true
+          echo "::endgroup::"
 
       # Every screen, both appearances. The app reads `-uiRoute` out of the
       # argument domain of UserDefaults and opens straight onto that screen,
@@ -106,5 +121,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-logs
-          path: build/Logs/**
+          path: |
+            xcodebuild-build.log
+            xcodebuild-test.log
           if-no-files-found: ignore

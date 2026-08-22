@@ -93,7 +93,7 @@ public struct SettingsView: View {
             .safeAreaInset(edge: .bottom) {
                 AppTabBar(selection: $tab) { tab = .chats }
             }
-            .navigationDestination(for: SettingsDestination.self, destination: destination)
+            .navigationDestination(for: SettingsDestination.self) { destination($0) }
             .sheet(isPresented: $isEditing) { EditProfileView() }
             .sheet(isPresented: $isShowingCode) { UsernameCodeSheet() }
             .confirmationDialog(
