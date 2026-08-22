@@ -89,6 +89,12 @@ public struct FloatingTabBar<Tab: Hashable>: View {
         .liquidGlass(in: .capsule)
         // The bar is one gesture surface, not four buttons, so UI tests
         // address it by normalized coordinate rather than by item.
+        //
+        // `.contain` is what actually publishes it: an identifier alone lands
+        // on a view that is not itself an accessibility element, so nothing
+        // ends up in the hierarchy to query. This keeps the children visible
+        // and adds a container around them.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("tabBar")
     }
 
@@ -118,6 +124,12 @@ public struct FloatingTabBar<Tab: Hashable>: View {
         }
         .foregroundStyle(isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color.secondary))
         .animation(.easeInOut(duration: 0.2), value: selection)
+        // Combined into one element per tab so a test can address a single
+        // item. Hit testing is unaffected — a tap still lands on the shared
+        // drag gesture underneath.
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("tab-\(item.title)")
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 
     private var selectedIndex: Int {

@@ -127,6 +127,10 @@ jobs:
       # records the screen, and uploads the clip.
       - name: Record the motion tour
         if: success()
+        # The clip is the deliverable here, not a pass mark. A flaky tour must
+        # not cost us the IPA, so the step reports its failure without taking
+        # the job down with it.
+        continue-on-error: true
         run: |
           UDID="${{ steps.sim.outputs.udid }}"
           mkdir -p media
