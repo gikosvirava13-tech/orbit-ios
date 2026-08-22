@@ -53,13 +53,13 @@ struct PrivacySettingsView: View {
 
             Section("Who Can See") {
                 NavigationLink {
-                    VisibilityPicker(title: "Last Seen", selection: $settings.lastSeenVisibility)
+                    AudiencePicker(title: "Last Seen", selection: $settings.lastSeenVisibility)
                 } label: {
                     LabeledContent("Last Seen", value: settings.lastSeenVisibility.title)
                 }
 
                 NavigationLink {
-                    VisibilityPicker(title: "Profile Photo", selection: $settings.photoVisibility)
+                    AudiencePicker(title: "Profile Photo", selection: $settings.photoVisibility)
                 } label: {
                     LabeledContent("Profile Photo", value: settings.photoVisibility.title)
                 }
@@ -77,16 +77,16 @@ struct PrivacySettingsView: View {
     }
 }
 
-struct VisibilityPicker: View {
+struct AudiencePicker: View {
     let title: String
-    @Binding var selection: Visibility
+    @Binding var selection: PrivacyAudience
 
     var body: some View {
         Form {
             Section {
                 // A List of checkmark rows rather than a Picker, because that
                 // is what iOS shows for this kind of choice on its own screen.
-                ForEach(Visibility.allCases) { option in
+                ForEach(PrivacyAudience.allCases) { option in
                     Button {
                         selection = option
                     } label: {

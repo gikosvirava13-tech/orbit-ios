@@ -26,7 +26,10 @@ public enum AccentPalette: String, CaseIterable, Identifiable, Sendable {
 }
 
 /// Who can see a given piece of profile information.
-public enum Visibility: String, CaseIterable, Identifiable, Sendable {
+///
+/// Not `Visibility` — SwiftUI already exports a type by that name, and any
+/// file importing both modules would fail to resolve it.
+public enum PrivacyAudience: String, CaseIterable, Identifiable, Sendable {
     case everybody, contacts, nobody
 
     public var id: String { rawValue }
@@ -87,8 +90,8 @@ public final class AppSettings {
     // MARK: Privacy
 
     public var readReceiptsEnabled: Bool { didSet { save(readReceiptsEnabled, .readReceipts) } }
-    public var lastSeenVisibility: Visibility { didSet { save(lastSeenVisibility.rawValue, .lastSeen) } }
-    public var photoVisibility: Visibility { didSet { save(photoVisibility.rawValue, .photo) } }
+    public var lastSeenVisibility: PrivacyAudience { didSet { save(lastSeenVisibility.rawValue, .lastSeen) } }
+    public var photoVisibility: PrivacyAudience { didSet { save(photoVisibility.rawValue, .photo) } }
     public var passcodeEnabled: Bool { didSet { save(passcodeEnabled, .passcode) } }
 
     // MARK: Data and storage
@@ -156,8 +159,8 @@ public final class AppSettings {
         countMutedChats = defaults.object(forKey: "settings.countMuted") as? Bool ?? false
 
         readReceiptsEnabled = defaults.object(forKey: "settings.readReceipts") as? Bool ?? true
-        lastSeenVisibility = Visibility(rawValue: defaults.string(forKey: "settings.lastSeen") ?? "") ?? .contacts
-        photoVisibility = Visibility(rawValue: defaults.string(forKey: "settings.photo") ?? "") ?? .everybody
+        lastSeenVisibility = PrivacyAudience(rawValue: defaults.string(forKey: "settings.lastSeen") ?? "") ?? .contacts
+        photoVisibility = PrivacyAudience(rawValue: defaults.string(forKey: "settings.photo") ?? "") ?? .everybody
         passcodeEnabled = defaults.object(forKey: "settings.passcode") as? Bool ?? false
 
         photoDownload = AutoDownloadPolicy(rawValue: defaults.string(forKey: "settings.photoDownload") ?? "") ?? .always
