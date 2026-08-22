@@ -116,6 +116,41 @@ jobs:
           name: simulator-screenshots
           path: screenshots/*.png
 
+      # An unsigned device build, for sideloading onto a real iPhone.
+      #
+      # Signing needs an Apple certificate and a Mac keychain, so CI does not
+      # sign at all — the sideloading tool on your machine re-signs it with
+      # your own Apple ID. That is what makes this possible from Windows.
+      - name: Package unsigned IPA
+        if: success()
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project Orbit.xcodeproj \
+            -scheme Orbit \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Orbit.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            2>&1 | tee xcodebuild-archive.log | tail -n 15
+
+          APP="build/Orbit.xcarchive/Products/Applications/Orbit.app"
+          test -d "$APP" || { echo "archive produced no app"; exit 1; }
+
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry Orbit-unsigned.ipa Payload
+          ls -lh Orbit-unsigned.ipa
+
+      - name: Upload IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Orbit-unsigned-ipa
+          path: Orbit-unsigned.ipa
+
       - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4
