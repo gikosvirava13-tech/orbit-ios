@@ -102,11 +102,25 @@ public struct ChatListView: View {
                     path.append(chatID)
                 }
             }
+            .onAppear(perform: applyScreenshotRoute)
         }
     }
 
     private var visibleChats: [Chat] {
         store.sorted(filter: search.isEmpty ? .all : scope, search: search)
+    }
+
+    /// CI launches the app with `-uiRoute conversation` (or `newChat`) so it
+    /// can photograph those screens without driving the UI.
+    private func applyScreenshotRoute() {
+        switch ScreenshotRoute.current {
+        case .conversation where path.isEmpty:
+            path = [ScreenshotRoute.sampleChatID]
+        case .newChat:
+            isComposing = true
+        default:
+            break
+        }
     }
 
     private func delete(at offsets: IndexSet) {

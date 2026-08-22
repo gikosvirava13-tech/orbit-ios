@@ -12,12 +12,37 @@ import Observation
 @Observable
 public final class ChatStore {
     public private(set) var chats: [Chat]
+    public private(set) var calls: [CallRecord]
 
     private let transport: MessageTransport?
 
-    public init(chats: [Chat] = PreviewData.chats, transport: MessageTransport? = nil) {
+    public init(
+        chats: [Chat] = PreviewData.chats,
+        calls: [CallRecord] = PreviewData.calls,
+        transport: MessageTransport? = nil
+    ) {
         self.chats = chats
+        self.calls = calls
         self.transport = transport
+    }
+
+    // MARK: Calls
+
+    public func calls(filter: CallFilter) -> [CallRecord] {
+        calls.filter { filter.matches($0) }.sorted { $0.date > $1.date }
+    }
+
+    /// `filter().count` rather than `count(where:)`, which needs the Swift 6
+    /// stdlib and so is unavailable on our iOS 17 deployment target.
+    public var missedCallCount: Int {
+        calls.filter(\.isMissed).count
+    }
+
+    public func deleteCalls(ids: [String]) {
+        guard !ids.isEmpty else { return }
+        let doomed = Set(ids)
+
+        calls.removeAll { doomed.contains($0.id) }
     }
 
     // MARK: Reads

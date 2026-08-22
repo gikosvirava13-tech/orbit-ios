@@ -100,6 +100,46 @@ final class ChatStoreTests: XCTestCase {
         XCTAssertEqual(store.chat(id: "c2")?.previewText, "Marcus: shipping the icon set tonight")
     }
 
+    func testCallFilterAndMissedCount() {
+        let store = ChatStore()
+
+        XCTAssertTrue(store.calls(filter: .missed).allSatisfy(\.isMissed))
+        XCTAssertEqual(store.missedCallCount, store.calls(filter: .missed).count)
+        XCTAssertGreaterThan(store.calls(filter: .all).count, store.calls(filter: .missed).count)
+    }
+
+    func testCallsAreSortedNewestFirst() {
+        let dates = ChatStore().calls(filter: .all).map(\.date)
+
+        XCTAssertEqual(dates, dates.sorted(by: >))
+    }
+
+    func testRepeatedCallsShowACountInTheTitle() {
+        let single = CallRecord(peer: PreviewData.me, direction: .missed, date: .now)
+        let repeated = CallRecord(peer: PreviewData.me, direction: .missed, date: .now, repeatCount: 3)
+
+        XCTAssertEqual(single.title, PreviewData.me.name)
+        XCTAssertEqual(repeated.title, "\(PreviewData.me.name) (3)")
+    }
+
+    func testMissedCallsHaveNoDurationInTheirSubtitle() {
+        let missed = CallRecord(peer: PreviewData.me, direction: .missed, date: .now)
+        let answered = CallRecord(peer: PreviewData.me, direction: .incoming, date: .now, duration: 90)
+
+        XCTAssertEqual(missed.subtitle, "Missed")
+        XCTAssertEqual(answered.subtitle, "Incoming (1 min)")
+    }
+
+    func testDeletingCallsRemovesOnlyTheNamedOnes() {
+        let store = ChatStore()
+        let before = store.calls.count
+
+        store.deleteCalls(ids: ["call1"])
+
+        XCTAssertEqual(store.calls.count, before - 1)
+        XCTAssertNil(store.calls.first { $0.id == "call1" })
+    }
+
     func testMessagesGroupIntoDayBuckets() {
         let messages = PreviewData.chats[0].messages
         let groups = ChatDateFormatter.groupByDay(messages)

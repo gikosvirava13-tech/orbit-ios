@@ -65,7 +65,10 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
         working-directory: Packages/OrbitKit
 
-      - name: Screenshot the running app
+      # Every screen, both appearances. The app reads `-uiRoute` out of the
+      # argument domain of UserDefaults and opens straight onto that screen,
+      # which is far less brittle than driving XCUITest just to take pictures.
+      - name: Screenshot every screen
         if: success()
         run: |
           mkdir -p screenshots
@@ -76,13 +79,20 @@ jobs:
           APP=$(find build/Build/Products -name "Orbit.app" -maxdepth 3 | head -1)
           xcrun simctl install "$UDID" "$APP"
 
+          ROUTES="chats conversation calls contacts settings profile newChat"
+
           for MODE in light dark; do
             xcrun simctl ui "$UDID" appearance "$MODE"
-            xcrun simctl launch "$UDID" com.orbit.app
-            sleep 7
-            xcrun simctl io "$UDID" screenshot "screenshots/chats-$MODE.png"
-            xcrun simctl terminate "$UDID" com.orbit.app || true
+            for ROUTE in $ROUTES; do
+              xcrun simctl terminate "$UDID" com.orbit.app 2>/dev/null || true
+              xcrun simctl launch "$UDID" com.orbit.app -uiRoute "$ROUTE"
+              sleep 4
+              xcrun simctl io "$UDID" screenshot "screenshots/$MODE-$ROUTE.png"
+            done
           done
+
+          xcrun simctl terminate "$UDID" com.orbit.app 2>/dev/null || true
+          ls -la screenshots
 
       - name: Upload screenshots
         if: success()

@@ -12,6 +12,51 @@ public enum PreviewData {
 
     public static let me = Peer(id: "me", name: "Sasha Green", kind: .user, presence: .online)
 
+    public static let calls: [CallRecord] = [
+        CallRecord(
+            id: "call1",
+            peer: Peer(id: "p4", name: "Marcus Bell", kind: .user, presence: .online),
+            direction: .outgoing,
+            date: at(11, 42),
+            duration: 372
+        ),
+        CallRecord(
+            id: "call2",
+            peer: Peer(id: "p1", name: "Nadia Rahman", kind: .user, presence: .online),
+            direction: .missed,
+            date: at(9, 15),
+            repeatCount: 2
+        ),
+        CallRecord(
+            id: "call3",
+            peer: Peer(id: "p6", name: "Ren Tanaka", kind: .user, presence: .recently),
+            direction: .incoming,
+            date: at(20, 4, daysAgo: 1),
+            duration: 46,
+            isVideo: true
+        ),
+        CallRecord(
+            id: "call4",
+            peer: Peer(id: "p8", name: "Ilya Volkov", kind: .user),
+            direction: .missed,
+            date: at(16, 28, daysAgo: 2)
+        ),
+        CallRecord(
+            id: "call5",
+            peer: Peer(id: "p4", name: "Marcus Bell", kind: .user, presence: .online),
+            direction: .incoming,
+            date: at(14, 3, daysAgo: 4),
+            duration: 1_284
+        ),
+        CallRecord(
+            id: "call6",
+            peer: Peer(id: "p1", name: "Nadia Rahman", kind: .user, presence: .online),
+            direction: .outgoing,
+            date: at(10, 55, daysAgo: 6),
+            duration: 6
+        )
+    ]
+
     public static let chats: [Chat] = [
         Chat(
             id: "c1",

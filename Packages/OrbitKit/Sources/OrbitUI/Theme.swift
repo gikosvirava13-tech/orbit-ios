@@ -1,8 +1,24 @@
+import OrbitCore
 import SwiftUI
 
 /// Everything here resolves to a stock system colour. Nothing is a hand-picked
 /// hex, so the app tracks light/dark, Increase Contrast and the user's tint
 /// automatically — and there is no invented palette to disagree with.
+public extension AccentPalette {
+    /// Maps onto a system colour so the tint tracks appearance and contrast
+    /// settings rather than being a fixed hex.
+    var color: Color {
+        switch self {
+        case .blue: Color(.systemBlue)
+        case .purple: Color(.systemPurple)
+        case .pink: Color(.systemPink)
+        case .orange: Color(.systemOrange)
+        case .green: Color(.systemGreen)
+        case .teal: Color(.systemTeal)
+        }
+    }
+}
+
 public enum Theme {
     // MARK: Surfaces
 
@@ -48,7 +64,9 @@ public enum Theme {
     ]
 
     public static func avatarGradient(for index: Int) -> LinearGradient {
-        let colors = avatarGradients[index % avatarGradients.count]
+        // `abs` as well as the caller's masking — an out-of-range index here
+        // would be an array crash, not a wrong colour.
+        let colors = avatarGradients[abs(index) % avatarGradients.count]
 
         return LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
     }

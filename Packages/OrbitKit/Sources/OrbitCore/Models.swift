@@ -49,9 +49,17 @@ public struct Peer: Identifiable, Hashable, Sendable {
     /// Per-peer index so a peer always gets the same avatar colour.
     ///
     /// Deliberately not `hashValue`: Swift seeds String hashing per process,
-    /// so that would repaint every avatar on each launch.
+    /// so that would repaint every avatar on each launch. Masked to 31 bits so
+    /// the result can never come out negative and index backwards into the
+    /// palette.
     public var colorIndex: Int {
-        id.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) % 1_000_003 }
+        var hash = 5381
+
+        for scalar in id.unicodeScalars {
+            hash = (hash &* 33 &+ Int(scalar.value)) & 0x7FFF_FFFF
+        }
+
+        return hash
     }
 }
 
