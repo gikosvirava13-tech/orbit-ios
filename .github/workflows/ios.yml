@@ -117,6 +117,9 @@ jobs:
 
       - name: Upload screenshots
         if: success()
+        # Artifact uploads occasionally time out inside GitHub's own service.
+        # That is not a build failure and must not skip the steps after it.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: simulator-screenshots
@@ -160,6 +163,9 @@ jobs:
 
       - name: Upload the tour video
         if: always()
+        # Artifact uploads occasionally time out inside GitHub's own service.
+        # That is not a build failure and must not skip the steps after it.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: motion-tour
@@ -196,6 +202,9 @@ jobs:
 
       - name: Upload IPA
         if: success()
+        # Artifact uploads occasionally time out inside GitHub's own service.
+        # That is not a build failure and must not skip the steps after it.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: Totem-unsigned-ipa
@@ -203,6 +212,9 @@ jobs:
 
       - name: Upload build logs
         if: always()
+        # Artifact uploads occasionally time out inside GitHub's own service.
+        # That is not a build failure and must not skip the steps after it.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: build-logs

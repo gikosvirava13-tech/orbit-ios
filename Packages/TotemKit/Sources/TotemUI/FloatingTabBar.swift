@@ -1,12 +1,18 @@
 import SwiftUI
 
-/// Floating glass tab bar: a capsule of items with a selection bubble, and a
+/// Floating glass tab bar: a capsule of items with a selection blob, and a
 /// detached circular action button beside it.
 ///
-/// The bubble is finger-attached. One `DragGesture(minimumDistance: 0)` serves
-/// both tapping and dragging — press anywhere and the bubble comes to you,
-/// slide across and it tracks continuously, selecting each tab as you pass it,
-/// then settles on release. Two gestures would fight for the same touch.
+/// The blob is finger-attached. One `DragGesture(minimumDistance: 0)` serves
+/// both tapping and dragging — press anywhere and the blob comes to you, slide
+/// across and it tracks continuously, selecting each tab as you pass it, then
+/// settles on release. Two gestures would fight for the same touch.
+///
+/// It is a glass element in its own right, not a flat fill: sitting inside the
+/// same `GlassEffectContainer` as the bar, the system blends the two, which is
+/// what makes it read as a droplet in the bar rather than a rectangle drawn on
+/// top of it. Under the finger it swells past the bar's edges and stretches
+/// along the direction of travel, so the motion has weight.
 public struct FloatingTabBar<Tab: Hashable>: View {
     public struct Item: Identifiable {
         public let id: Tab
@@ -27,9 +33,15 @@ public struct FloatingTabBar<Tab: Hashable>: View {
     private let trailingAction: (() -> Void)?
     private let trailingSymbol: String
 
-    /// Finger position while dragging; `nil` means the bubble rests on the
+    /// Finger position while dragging; `nil` means the blob rests on the
     /// selected item.
     @State private var dragX: CGFloat?
+
+    /// Swollen while a finger is down.
+    @State private var isHeld = false
+
+    /// Squash and stretch, driven by drag velocity. `1 × 1` is at rest.
+    @State private var jelly = CGSize(width: 1, height: 1)
 
     private let height: CGFloat = 58
 
@@ -56,7 +68,9 @@ public struct FloatingTabBar<Tab: Hashable>: View {
                 .buttonStyle(GlassCircleButtonStyle(diameter: height))
             }
         }
-        .liquidGlassGroup()
+        // Groups the bar, the blob and the search button into one glass scope
+        // so the system can blend them where they meet.
+        .liquidGlassGroup(spacing: 18)
         .padding(.horizontal, 16)
         .padding(.bottom, 4)
         .sensoryFeedback(.selection, trigger: selection)
@@ -70,9 +84,7 @@ public struct FloatingTabBar<Tab: Hashable>: View {
                 ?? restingX
 
             ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.primary.opacity(0.10))
-                    .frame(width: slot - 6, height: height - 10)
+                blob(slot: slot)
                     .position(x: bubbleX, y: height / 2)
 
                 HStack(spacing: 0) {
@@ -96,6 +108,29 @@ public struct FloatingTabBar<Tab: Hashable>: View {
         // and adds a container around them.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("tabBar")
+    }
+
+    // MARK: Blob
+
+    /// Swells past the bar's height while held, so it bulges out of the
+    /// capsule the way a droplet would rather than staying boxed inside it.
+    private func blob(slot: CGFloat) -> some View {
+        let width = min(slot - (isHeld ? 2 : 10), isHeld ? 78 : 68)
+        let blobHeight = isHeld ? height + 6 : height - 8
+
+        return Capsule(style: .continuous)
+            // A tint over the glass, so the blob stays legible on top of the
+            // bar's own glass — two identical materials would cancel out.
+            .fill(Color.accentColor.opacity(0.18))
+            .overlay {
+                Capsule(style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.75)
+            }
+            .frame(width: max(width, 44), height: blobHeight)
+            .liquidGlass(in: Capsule(style: .continuous), interactive: true)
+            .scaleEffect(x: jelly.width, y: jelly.height)
+            .animation(.spring(response: 0.30, dampingFraction: 0.68), value: isHeld)
+            .animation(.interactiveSpring(response: 0.16, dampingFraction: 0.70), value: jelly)
     }
 
     private func itemLabel(_ item: Item) -> some View {
@@ -139,15 +174,18 @@ public struct FloatingTabBar<Tab: Hashable>: View {
     private func dragGesture(slot: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                // First touch animates the bubble over; subsequent movement
-                // tracks the finger directly so it never lags behind.
+                // First touch animates the blob over and swells it; subsequent
+                // movement tracks the finger directly so it never lags behind.
                 if dragX == nil {
-                    withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.68)) {
                         dragX = value.location.x
+                        isHeld = true
                     }
                 } else {
                     dragX = value.location.x
                 }
+
+                jelly = Self.jelly(forSpeed: value.velocity.width)
 
                 let index = Int(value.location.x / slot).clamped(to: 0 ... items.count - 1)
                 if items[index].id != selection {
@@ -155,10 +193,22 @@ public struct FloatingTabBar<Tab: Hashable>: View {
                 }
             }
             .onEnded { _ in
-                withAnimation(.snappy(duration: 0.3, extraBounce: 0)) {
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.62)) {
                     dragX = nil
+                    isHeld = false
+                    jelly = CGSize(width: 1, height: 1)
                 }
             }
+    }
+
+    /// Stretch along the direction of travel, squash across it — the pair of
+    /// deformations that reads as a liquid rather than a scaling rectangle.
+    /// Capped well short of a caricature: the point is weight, not bounce.
+    private static func jelly(forSpeed speed: CGFloat) -> CGSize {
+        let normalized = min(abs(speed), 2_400) / 2_400
+        let amount = normalized * 0.24
+
+        return CGSize(width: 1 + amount, height: 1 - amount * 0.55)
     }
 }
 
@@ -176,15 +226,20 @@ private extension Comparable {
 
         var body: some View {
             ZStack(alignment: .bottom) {
-                LinearGradient(colors: [.indigo, .purple, .pink], startPoint: .top, endPoint: .bottom)
-                    .ignoresSafeArea()
+                LinearGradient(
+                    colors: [Theme.iris, Theme.orchid, Theme.coral],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
 
                 FloatingTabBar(
                     selection: $tab,
                     items: [
-                        .init(id: 0, title: "Chats", systemImage: "bubble.left.and.bubble.right.fill", badge: 528),
-                        .init(id: 1, title: "Contacts", systemImage: "person.crop.circle"),
-                        .init(id: 2, title: "Settings", systemImage: "gearshape.fill")
+                        .init(id: 0, title: "Contacts", systemImage: "person.crop.circle.fill", badge: 1),
+                        .init(id: 1, title: "Calls", systemImage: "phone.fill"),
+                        .init(id: 2, title: "Chats", systemImage: "bubble.left.and.bubble.right.fill", badge: 833),
+                        .init(id: 3, title: "Settings", systemImage: "gearshape.fill")
                     ],
                     trailingAction: {}
                 )
