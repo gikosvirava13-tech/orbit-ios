@@ -1,4 +1,4 @@
-name: iOS
+name: build
 
 # Runs on a GitHub-hosted Mac, so the app gets compiled, tested and
 # screenshotted even if you only own a Windows machine.
