@@ -6,11 +6,24 @@ import SwiftUI
 
 struct NotificationsSettingsView: View {
     @Environment(AppSettings.self) private var settings
+    @Environment(ChatStore.self) private var store
 
     var body: some View {
         @Bindable var settings = settings
 
-        Form {
+        List {
+            Section {
+                NotificationPreviewCard(
+                    isEnabled: settings.notificationsEnabled,
+                    showsPreview: settings.showMessagePreviews,
+                    sender: previewChat?.peer.name ?? "Nadia Rahman",
+                    text: previewChat?.previewText ?? "Sent you a message"
+                )
+                .plainCardRow()
+            } footer: {
+                Text("This is how an alert looks on your Lock Screen right now.")
+            }
+
             Section {
                 Toggle("Allow Notifications", isOn: $settings.notificationsEnabled)
             } footer: {
@@ -26,13 +39,120 @@ struct NotificationsSettingsView: View {
 
             Section {
                 Toggle("Count Muted Chats", isOn: $settings.countMutedChats)
+            } header: {
+                Text("Badge")
             } footer: {
-                Text("Include chats you have muted in the unread badge.")
+                Text("Include chats you have muted in the unread count on the tab bar.")
             }
             .disabled(!settings.notificationsEnabled)
+
+            Section {
+                if mutedChats.isEmpty {
+                    Text("No exceptions")
+                        .foregroundStyle(Theme.secondaryLabel)
+                } else {
+                    ForEach(mutedChats) { chat in
+                        exceptionRow(chat)
+                    }
+                }
+            } header: {
+                Text("Muted Chats")
+            } footer: {
+                Text("Muted conversations never alert you, whatever the settings above say.")
+            }
         }
+        .listStyle(.insetGrouped)
         .navigationTitle("Notifications and Sounds")
         .navigationBarTitleDisplayMode(.inline)
+        .animation(Motion.standard, value: settings.showMessagePreviews)
+        .animation(Motion.standard, value: settings.notificationsEnabled)
+    }
+
+    private var mutedChats: [Chat] {
+        store.chats.filter(\.isMuted).sorted { $0.peer.name < $1.peer.name }
+    }
+
+    private var previewChat: Chat? {
+        store.chats.first { $0.peer.kind == .user && !$0.messages.isEmpty }
+    }
+
+    /// `.borderless` so the trailing button is hit independently — a plain
+    /// button inside a list row otherwise hands the whole row to the first one.
+    private func exceptionRow(_ chat: Chat) -> some View {
+        HStack(spacing: 12) {
+            AvatarView(peer: chat.peer, size: 32, showsPresence: false)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(chat.peer.name)
+                Text("Muted")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.secondaryLabel)
+            }
+
+            Spacer(minLength: 8)
+
+            Button("Unmute") {
+                store.toggleMuted(chatID: chat.id)
+            }
+            .buttonStyle(.borderless)
+            .font(.subheadline.weight(.medium))
+        }
+    }
+}
+
+/// A stand-in Lock Screen banner that reacts to the toggles below it, so the
+/// effect of "Show Previews" is visible before you leave the screen.
+struct NotificationPreviewCard: View {
+    let isEnabled: Bool
+    let showsPreview: Bool
+    let sender: String
+    let text: String
+
+    var body: some View {
+        SettingsCard {
+            HStack(alignment: .top, spacing: 12) {
+                IconTile(symbol: "bubble.left.and.bubble.right.fill", tint: Color.accentColor, side: 38)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text("ORBIT")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Theme.secondaryLabel)
+
+                        Spacer(minLength: 0)
+
+                        Text("now")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.tertiaryLabel)
+                    }
+
+                    Text(headline)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.secondaryLabel)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(14)
+        }
+        .opacity(isEnabled ? 1 : 0.45)
+        .saturation(isEnabled ? 1 : 0)
+    }
+
+    private var headline: String {
+        guard isEnabled else { return "Notifications are off" }
+
+        return showsPreview ? sender : "Orbit"
+    }
+
+    private var detail: String {
+        guard isEnabled else { return "You will not be alerted about new messages." }
+
+        return showsPreview ? text : "1 new message"
     }
 }
 
@@ -44,36 +164,93 @@ struct PrivacySettingsView: View {
     var body: some View {
         @Bindable var settings = settings
 
-        Form {
+        List {
+            Section {
+                summaryCard.plainCardRow()
+            }
+
+            Section {
+                audienceRow("Last Seen", symbol: "clock", selection: $settings.lastSeenVisibility)
+                audienceRow("Profile Photo", symbol: "person.crop.square", selection: $settings.photoVisibility)
+                audienceRow("Group Invites", symbol: "person.2", selection: $settings.groupInviteAudience)
+            } header: {
+                Text("Who Can See")
+            } footer: {
+                Text("Limiting what you share also limits what you can see about other people.")
+            }
+
             Section {
                 Toggle("Read Receipts", isOn: $settings.readReceiptsEnabled)
+            } header: {
+                Text("Messaging")
             } footer: {
                 Text("When off, delivery ticks are hidden everywhere — in conversations and in the chat list.")
             }
 
-            Section("Who Can See") {
-                NavigationLink {
-                    AudiencePicker(title: "Last Seen", selection: $settings.lastSeenVisibility)
-                } label: {
-                    LabeledContent("Last Seen", value: settings.lastSeenVisibility.title)
-                }
-
-                NavigationLink {
-                    AudiencePicker(title: "Profile Photo", selection: $settings.photoVisibility)
-                } label: {
-                    LabeledContent("Profile Photo", value: settings.photoVisibility.title)
-                }
-            }
-
             Section {
                 Toggle("Passcode Lock", isOn: $settings.passcodeEnabled)
-                NavigationLink("Blocked Users") { BlockedUsersView() }
+                NavigationLink(value: SettingsDestination.blocked) {
+                    Text("Blocked Users")
+                }
+            } header: {
+                Text("Security")
             } footer: {
                 Text("A passcode is requested whenever the app returns from the background.")
             }
         }
+        .listStyle(.insetGrouped)
         .navigationTitle("Privacy and Security")
         .navigationBarTitleDisplayMode(.inline)
+        .animation(Motion.standard, value: settings.passcodeEnabled)
+    }
+
+    /// One sentence describing the current posture, rather than repeating the
+    /// rows underneath as a set of chips.
+    private var summaryCard: some View {
+        SettingsCard {
+            HStack(spacing: 14) {
+                Image(systemName: settings.passcodeEnabled ? "lock.shield.fill" : "shield.lefthalf.filled")
+                    .font(.system(size: 30))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 44)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(settings.passcodeEnabled ? "Locked" : "Standard Protection")
+                        .font(.headline)
+
+                    Text(summaryText)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.secondaryLabel)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+        }
+    }
+
+    private var summaryText: String {
+        let seen = settings.lastSeenVisibility.title.lowercased()
+        let receipts = settings.readReceiptsEnabled ? "on" : "off"
+
+        return "Last seen is visible to \(seen), and read receipts are \(receipts)."
+    }
+
+    private func audienceRow(
+        _ title: String,
+        symbol: String,
+        selection: Binding<PrivacyAudience>
+    ) -> some View {
+        NavigationLink {
+            AudiencePicker(title: title, selection: selection)
+        } label: {
+            LabeledContent {
+                Text(selection.wrappedValue.title)
+            } label: {
+                Label(title, systemImage: symbol)
+            }
+        }
     }
 }
 
@@ -82,10 +259,10 @@ struct AudiencePicker: View {
     @Binding var selection: PrivacyAudience
 
     var body: some View {
-        Form {
+        List {
             Section {
-                // A List of checkmark rows rather than a Picker, because that
-                // is what iOS shows for this kind of choice on its own screen.
+                // Checkmark rows rather than a `Picker`, because that is what
+                // iOS shows when a choice gets a screen of its own.
                 ForEach(PrivacyAudience.allCases) { option in
                     Button {
                         selection = option
@@ -93,210 +270,90 @@ struct AudiencePicker: View {
                         HStack {
                             Text(option.title)
                                 .foregroundStyle(Theme.label)
+
                             Spacer()
+
                             if option == selection {
                                 Image(systemName: "checkmark")
                                     .foregroundStyle(Color.accentColor)
                                     .fontWeight(.semibold)
                             }
                         }
+                        .contentShape(.rect)
                     }
                 }
+            } header: {
+                Text("Who can see this")
             } footer: {
-                Text("Changing this also changes what you can see about other people.")
+                Text(footerText)
             }
         }
+        .listStyle(.insetGrouped)
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .animation(Motion.quick, value: selection)
+    }
+
+    private var footerText: String {
+        switch selection {
+        case .everybody: "Anyone who has your username can see this."
+        case .contacts: "Only people saved in your contacts can see this."
+        case .nobody: "Nobody can see this, and you will not see it about others."
+        }
     }
 }
 
 struct BlockedUsersView: View {
     var body: some View {
         List {
-            ContentUnavailableView(
-                "No Blocked Users",
-                systemImage: "hand.raised",
-                description: Text("Blocked users cannot message or call you.")
-            )
-            .listRowBackground(Color.clear)
+            Section {
+                SettingsCard {
+                    VStack(spacing: 10) {
+                        Image(systemName: "hand.raised.fill")
+                            .font(.system(size: 30))
+                            .foregroundStyle(Color.accentColor)
+
+                        Text("Nobody is blocked")
+                            .font(.headline)
+
+                        Text("Blocked people cannot message or call you, and cannot see when you were last online.")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.secondaryLabel)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(24)
+                }
+                .plainCardRow()
+            }
+
+            Section {
+                Button {
+                    // A contact picker would open here.
+                } label: {
+                    Label("Block a Contact", systemImage: "plus.circle.fill")
+                }
+            } footer: {
+                Text("You can also block someone from their profile.")
+            }
         }
+        .listStyle(.insetGrouped)
         .navigationTitle("Blocked Users")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
 
-// MARK: - Appearance
-
-struct AppearanceSettingsView: View {
-    @Environment(AppSettings.self) private var settings
-
-    private let columns = [GridItem(.adaptive(minimum: 52), spacing: 16)]
-
-    var body: some View {
-        @Bindable var settings = settings
-
-        Form {
-            Section("Theme") {
-                Picker("Theme", selection: $settings.appearance) {
-                    ForEach(AppearanceMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .listRowInsets(.init(top: 10, leading: 16, bottom: 10, trailing: 16))
-            }
-
-            Section {
-                LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(AccentPalette.allCases) { palette in
-                        Button {
-                            settings.accent = palette
-                        } label: {
-                            Circle()
-                                .fill(palette.color)
-                                .frame(width: 44, height: 44)
-                                .overlay {
-                                    if palette == settings.accent {
-                                        Image(systemName: "checkmark")
-                                            .font(.headline)
-                                            .foregroundStyle(.white)
-                                    }
-                                }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(palette.title)
-                        .accessibilityAddTraits(palette == settings.accent ? .isSelected : [])
-                    }
-                }
-                .padding(.vertical, 8)
-            } header: {
-                Text("Accent Colour")
-            } footer: {
-                Text("Applies across the app — buttons, links, the tab bar and outgoing bubbles.")
-            }
-        }
-        .navigationTitle("Appearance")
-        .navigationBarTitleDisplayMode(.inline)
+#Preview("Notifications") {
+    NavigationStack {
+        NotificationsSettingsView()
+            .environment(AppSettings())
+            .environment(ChatStore())
     }
 }
 
-// MARK: - Data and storage
-
-struct DataStorageSettingsView: View {
-    @Environment(AppSettings.self) private var settings
-
-    @State private var isClearing = false
-
-    var body: some View {
-        @Bindable var settings = settings
-
-        Form {
-            Section("Automatic Download") {
-                policyRow("Photos", selection: $settings.photoDownload)
-                policyRow("Videos", selection: $settings.videoDownload)
-                policyRow("Files", selection: $settings.fileDownload)
-            }
-
-            Section {
-                Toggle("Save Incoming Photos", isOn: $settings.saveIncomingToPhotos)
-            } footer: {
-                Text("Photos you receive are added to your photo library automatically.")
-            }
-
-            Section("Storage") {
-                LabeledContent("Cache", value: settings.approximateCacheSize)
-                Button("Clear Cache", role: .destructive) { isClearing = true }
-            }
-        }
-        .navigationTitle("Data and Storage")
-        .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Clear cached media?", isPresented: $isClearing, titleVisibility: .visible) {
-            Button("Clear Cache", role: .destructive) {}
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Messages stay; downloaded media is fetched again when you open it.")
-        }
-    }
-
-    private func policyRow(_ title: String, selection: Binding<AutoDownloadPolicy>) -> some View {
-        Picker(title, selection: selection) {
-            ForEach(AutoDownloadPolicy.allCases) { policy in
-                Text(policy.title).tag(policy)
-            }
-        }
-    }
-}
-
-// MARK: - Devices
-
-struct DevicesView: View {
-    var body: some View {
-        Form {
-            Section("This Device") {
-                DeviceRow(name: "iPhone", detail: "Orbit 1.0 · active now", symbol: "iphone")
-            }
-
-            Section {
-                DeviceRow(name: "Mac", detail: "Orbit Desktop · 2 hours ago", symbol: "laptopcomputer")
-            } header: {
-                Text("Active Sessions")
-            } footer: {
-                Text("Signing out of a device does not delete anything from it.")
-            }
-
-            Section {
-                Button("Sign Out All Other Devices", role: .destructive) {}
-            }
-        }
-        .navigationTitle("Devices")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-private struct DeviceRow: View {
-    let name: String
-    let detail: String
-    let symbol: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.title2)
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 30)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(name)
-                Text(detail)
-                    .font(.footnote)
-                    .foregroundStyle(Theme.secondaryLabel)
-            }
-        }
-    }
-}
-
-// MARK: - Chat folders
-
-struct ChatFoldersView: View {
-    @Environment(ChatStore.self) private var store
-
-    var body: some View {
-        Form {
-            Section {
-                ForEach(ChatListFilter.allCases) { filter in
-                    LabeledContent(filter.rawValue) {
-                        Text(store.sorted(filter: filter, search: "").count.formatted())
-                            .foregroundStyle(Theme.secondaryLabel)
-                    }
-                }
-            } header: {
-                Text("Folders")
-            } footer: {
-                Text("Folders appear as scopes under the search field on the Chats screen.")
-            }
-        }
-        .navigationTitle("Chat Folders")
-        .navigationBarTitleDisplayMode(.inline)
+#Preview("Privacy") {
+    NavigationStack {
+        PrivacySettingsView()
+            .environment(AppSettings())
     }
 }

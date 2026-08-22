@@ -30,10 +30,13 @@ schemes:
     build:
       targets:
         Orbit: all
+        OrbitUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
+      targets:
+        - OrbitUITests
 
 targets:
   Orbit:
@@ -60,3 +63,18 @@ targets:
           UIInterfaceOrientationLandscapeRight
         GENERATE_INFOPLIST_FILE: YES
         TARGETED_DEVICE_FAMILY: "1,2"
+
+  # Exists to drive the app for the recorded tour, not to test behaviour —
+  # the logic tests live in OrbitCoreTests and need no simulator.
+  OrbitUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: Orbit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.orbit.app.uitests
+        TEST_TARGET_NAME: Orbit
+        GENERATE_INFOPLIST_FILE: YES

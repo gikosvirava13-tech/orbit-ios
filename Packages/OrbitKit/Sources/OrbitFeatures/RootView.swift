@@ -80,12 +80,17 @@ public struct RootView: View {
         .preferredColorScheme(colorScheme)
     }
 
+    /// Every settings sub-page routes through the Settings tab, which then
+    /// pushes the rest of the stack itself.
     private static var initialTab: AppTab {
-        switch ScreenshotRoute.current {
-        case .calls: .calls
-        case .contacts: .contacts
-        case .settings, .profile: .settings
-        default: .chats
+        guard let route = ScreenshotRoute.current else { return .chats }
+
+        if route.startsInSettings { return .settings }
+
+        switch route {
+        case .calls: return .calls
+        case .contacts: return .contacts
+        default: return .chats
         }
     }
 

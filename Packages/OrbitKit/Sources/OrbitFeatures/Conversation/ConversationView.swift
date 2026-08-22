@@ -4,6 +4,7 @@ import SwiftUI
 
 public struct ConversationView: View {
     @Environment(ChatStore.self) private var store
+    @Environment(AppSettings.self) private var settings
 
     private let chatID: String
 
@@ -64,10 +65,17 @@ public struct ConversationView: View {
                 }
             }
         }
+        // Only the bubbles take the Text Size setting. The bars around them
+        // keep following the system, the way Messages behaves.
+        .dynamicTypeSize(settings.textSize.dynamicTypeSize)
         .safeAreaInset(edge: .bottom) {
             Composer { text in
                 store.send(text: text, to: chatID)
             }
+        }
+        .background {
+            WallpaperBackground(wallpaper: settings.wallpaper)
+                .ignoresSafeArea()
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -129,6 +137,7 @@ struct Composer: View {
                 .background {
                     Capsule().stroke(Theme.separator, lineWidth: 1)
                 }
+                .accessibilityIdentifier("composer")
 
             Button {
                 guard canSend else { return }
@@ -139,6 +148,7 @@ struct Composer: View {
                     .font(.title2)
             }
             .accessibilityLabel(canSend ? "Send" : "Record voice message")
+            .accessibilityIdentifier("send")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

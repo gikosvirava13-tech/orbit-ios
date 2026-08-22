@@ -25,6 +25,50 @@ public enum AccentPalette: String, CaseIterable, Identifiable, Sendable {
     public var title: String { rawValue.capitalized }
 }
 
+/// Backdrop behind a conversation. A small closed set rather than an image
+/// picker, so it costs nothing to ship and still tracks light and dark.
+public enum Wallpaper: String, CaseIterable, Identifiable, Sendable {
+    case plain, dusk, mint, ember, graphite
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .plain: "None"
+        case .dusk: "Dusk"
+        case .mint: "Mint"
+        case .ember: "Ember"
+        case .graphite: "Graphite"
+        }
+    }
+}
+
+/// Message text size. Four steps rather than a free slider, because the values
+/// map onto Dynamic Type sizes the system already knows how to lay out.
+public enum TextSize: String, CaseIterable, Identifiable, Sendable {
+    case small, standard, large, extraLarge
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .small: "Small"
+        case .standard: "Default"
+        case .large: "Large"
+        case .extraLarge: "Extra Large"
+        }
+    }
+
+    /// Position in `allCases`, so a slider can drive the choice.
+    public var step: Int { Self.allCases.firstIndex(of: self) ?? 1 }
+
+    public static func at(step: Int) -> TextSize {
+        let bounded = min(max(step, 0), allCases.count - 1)
+
+        return allCases[bounded]
+    }
+}
+
 /// Who can see a given piece of profile information.
 ///
 /// Not `Visibility` — SwiftUI already exports a type by that name, and any
@@ -57,6 +101,50 @@ public enum AutoDownloadPolicy: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// Languages offered in Settings. A closed list, since nothing is actually
+/// localised yet — the picker persists the choice and nothing more.
+public enum AppLanguage: String, CaseIterable, Identifiable, Sendable {
+    case english, spanish, french, german, portuguese
+    case italian, dutch, polish, turkish, japanese, korean, arabic
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .english: "English"
+        case .spanish: "Spanish"
+        case .french: "French"
+        case .german: "German"
+        case .portuguese: "Portuguese"
+        case .italian: "Italian"
+        case .dutch: "Dutch"
+        case .polish: "Polish"
+        case .turkish: "Turkish"
+        case .japanese: "Japanese"
+        case .korean: "Korean"
+        case .arabic: "Arabic"
+        }
+    }
+
+    /// Endonym, shown as the subtitle — the way iOS lists languages.
+    public var nativeTitle: String {
+        switch self {
+        case .english: "English"
+        case .spanish: "Espanol"
+        case .french: "Francais"
+        case .german: "Deutsch"
+        case .portuguese: "Portugues"
+        case .italian: "Italiano"
+        case .dutch: "Nederlands"
+        case .polish: "Polski"
+        case .turkish: "Turkce"
+        case .japanese: "Nihongo"
+        case .korean: "Hangugeo"
+        case .arabic: "Arabiyya"
+        }
+    }
+}
+
 // MARK: - Settings
 
 /// Every user preference in the app, persisted to `UserDefaults`.
@@ -78,6 +166,8 @@ public final class AppSettings {
 
     public var appearance: AppearanceMode { didSet { save(appearance.rawValue, .appearance) } }
     public var accent: AccentPalette { didSet { save(accent.rawValue, .accent) } }
+    public var wallpaper: Wallpaper { didSet { save(wallpaper.rawValue, .wallpaper) } }
+    public var textSize: TextSize { didSet { save(textSize.rawValue, .textSize) } }
 
     // MARK: Notifications
 
@@ -92,6 +182,7 @@ public final class AppSettings {
     public var readReceiptsEnabled: Bool { didSet { save(readReceiptsEnabled, .readReceipts) } }
     public var lastSeenVisibility: PrivacyAudience { didSet { save(lastSeenVisibility.rawValue, .lastSeen) } }
     public var photoVisibility: PrivacyAudience { didSet { save(photoVisibility.rawValue, .photo) } }
+    public var groupInviteAudience: PrivacyAudience { didSet { save(groupInviteAudience.rawValue, .groupInvites) } }
     public var passcodeEnabled: Bool { didSet { save(passcodeEnabled, .passcode) } }
 
     // MARK: Data and storage
@@ -100,6 +191,10 @@ public final class AppSettings {
     public var videoDownload: AutoDownloadPolicy { didSet { save(videoDownload.rawValue, .videoDownload) } }
     public var fileDownload: AutoDownloadPolicy { didSet { save(fileDownload.rawValue, .fileDownload) } }
     public var saveIncomingToPhotos: Bool { didSet { save(saveIncomingToPhotos, .saveToPhotos) } }
+
+    // MARK: Language
+
+    public var language: AppLanguage { didSet { save(language.rawValue, .language) } }
 
     // MARK: Derived
 
@@ -111,9 +206,7 @@ public final class AppSettings {
     }
 
     /// Placeholder until there is a real media cache to measure.
-    public var approximateCacheSize: String {
-        Int64(155_600_000).formatted(.byteCount(style: .file))
-    }
+    public var approximateCacheSize: String { StorageUsage.totalFormatted }
 
     // MARK: Storage
 
@@ -121,26 +214,19 @@ public final class AppSettings {
 
     private enum Key: String {
         case displayName, username, phoneNumber, bio
-        case appearance, accent
+        case appearance, accent, wallpaper, textSize
         case notifications, previews, inAppSounds, inAppVibrate, countMuted
-        case readReceipts, lastSeen, photo, passcode
+        case readReceipts, lastSeen, photo, groupInvites, passcode
         case photoDownload, videoDownload, fileDownload, saveToPhotos
+        case language
     }
 
     private func save(_ value: Any, _ key: Key) {
         defaults.set(value, forKey: "settings.\(key.rawValue)")
     }
 
-    private func string(_ key: Key) -> String? {
-        defaults.string(forKey: "settings.\(key.rawValue)")
-    }
-
-    /// `object(forKey:)` rather than `bool(forKey:)` so "never set" is
+    /// `object(forKey:)` rather than `bool(forKey:)` so "never set" stays
     /// distinguishable from "set to false".
-    private func bool(_ key: Key, default fallback: Bool) -> Bool {
-        defaults.object(forKey: "settings.\(key.rawValue)") as? Bool ?? fallback
-    }
-
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
 
@@ -151,6 +237,8 @@ public final class AppSettings {
 
         appearance = AppearanceMode(rawValue: defaults.string(forKey: "settings.appearance") ?? "") ?? .system
         accent = AccentPalette(rawValue: defaults.string(forKey: "settings.accent") ?? "") ?? .blue
+        wallpaper = Wallpaper(rawValue: defaults.string(forKey: "settings.wallpaper") ?? "") ?? .dusk
+        textSize = TextSize(rawValue: defaults.string(forKey: "settings.textSize") ?? "") ?? .standard
 
         notificationsEnabled = defaults.object(forKey: "settings.notifications") as? Bool ?? true
         showMessagePreviews = defaults.object(forKey: "settings.previews") as? Bool ?? true
@@ -161,12 +249,15 @@ public final class AppSettings {
         readReceiptsEnabled = defaults.object(forKey: "settings.readReceipts") as? Bool ?? true
         lastSeenVisibility = PrivacyAudience(rawValue: defaults.string(forKey: "settings.lastSeen") ?? "") ?? .contacts
         photoVisibility = PrivacyAudience(rawValue: defaults.string(forKey: "settings.photo") ?? "") ?? .everybody
+        groupInviteAudience = PrivacyAudience(rawValue: defaults.string(forKey: "settings.groupInvites") ?? "") ?? .contacts
         passcodeEnabled = defaults.object(forKey: "settings.passcode") as? Bool ?? false
 
         photoDownload = AutoDownloadPolicy(rawValue: defaults.string(forKey: "settings.photoDownload") ?? "") ?? .always
         videoDownload = AutoDownloadPolicy(rawValue: defaults.string(forKey: "settings.videoDownload") ?? "") ?? .wifiOnly
         fileDownload = AutoDownloadPolicy(rawValue: defaults.string(forKey: "settings.fileDownload") ?? "") ?? .wifiOnly
         saveIncomingToPhotos = defaults.object(forKey: "settings.saveToPhotos") as? Bool ?? false
+
+        language = AppLanguage(rawValue: defaults.string(forKey: "settings.language") ?? "") ?? .english
     }
 
     public func reset() {
@@ -176,6 +267,8 @@ public final class AppSettings {
         bio = "Building interfaces. Mostly lists."
         appearance = .system
         accent = .blue
+        wallpaper = .dusk
+        textSize = .standard
         notificationsEnabled = true
         showMessagePreviews = true
         inAppSounds = true
@@ -184,10 +277,12 @@ public final class AppSettings {
         readReceiptsEnabled = true
         lastSeenVisibility = .contacts
         photoVisibility = .everybody
+        groupInviteAudience = .contacts
         passcodeEnabled = false
         photoDownload = .always
         videoDownload = .wifiOnly
         fileDownload = .wifiOnly
         saveIncomingToPhotos = false
+        language = .english
     }
 }

@@ -90,3 +90,59 @@ public enum Motion {
     public static let standard: Animation = .easeInOut(duration: 0.25)
     public static let quick: Animation = .easeOut(duration: 0.18)
 }
+
+// MARK: - Wallpaper
+
+public extension Wallpaper {
+    /// Two system colours per wallpaper, so each one still reads correctly in
+    /// both appearances. Drawn at low opacity behind a conversation.
+    var colors: [Color] {
+        switch self {
+        case .plain: []
+        case .dusk: [Color(.systemIndigo), Color(.systemPurple)]
+        case .mint: [Color(.systemTeal), Color(.systemGreen)]
+        case .ember: [Color(.systemOrange), Color(.systemPink)]
+        case .graphite: [Color(.systemGray), Color(.systemGray3)]
+        }
+    }
+
+    var gradient: LinearGradient {
+        LinearGradient(
+            colors: colors.isEmpty ? [.clear, .clear] : colors,
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+}
+
+// MARK: - Text size
+
+public extension TextSize {
+    /// Maps onto Dynamic Type rather than a font-size multiplier, so the
+    /// system handles line height and layout the way it does everywhere else.
+    var dynamicTypeSize: DynamicTypeSize {
+        switch self {
+        case .small: .small
+        case .standard: .medium
+        case .large: .large
+        case .extraLarge: .xLarge
+        }
+    }
+}
+
+// MARK: - Storage
+
+public extension Theme {
+    /// Colours for the storage bar, in the order the categories are listed.
+    static let usageColors: [Color] = [
+        Color(.systemBlue),
+        Color(.systemPurple),
+        Color(.systemTeal),
+        Color(.systemOrange),
+        Color(.systemGray3)
+    ]
+
+    static func usageColor(_ index: Int) -> Color {
+        usageColors[abs(index) % usageColors.count]
+    }
+}

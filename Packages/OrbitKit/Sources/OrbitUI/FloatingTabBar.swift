@@ -87,6 +87,9 @@ public struct FloatingTabBar<Tab: Hashable>: View {
         }
         .frame(height: height)
         .liquidGlass(in: .capsule)
+        // The bar is one gesture surface, not four buttons, so UI tests
+        // address it by normalized coordinate rather than by item.
+        .accessibilityIdentifier("tabBar")
     }
 
     private func itemLabel(_ item: Item) -> some View {

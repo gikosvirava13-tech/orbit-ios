@@ -28,6 +28,7 @@ public struct ChatListView: View {
                         ChatRow(chat: chat)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("chat-\(chat.id)")
                     .listRowInsets(.init(top: 4, leading: 16, bottom: 4, trailing: 16))
                     .swipeActions(edge: .trailing) {
                         Button {
@@ -113,7 +114,9 @@ public struct ChatListView: View {
     /// CI launches the app with `-uiRoute conversation` (or `newChat`) so it
     /// can photograph those screens without driving the UI.
     private func applyScreenshotRoute() {
-        switch ScreenshotRoute.current {
+        guard let route = ScreenshotRoute.current else { return }
+
+        switch route {
         case .conversation where path.isEmpty:
             path = [ScreenshotRoute.sampleChatID]
         case .newChat:

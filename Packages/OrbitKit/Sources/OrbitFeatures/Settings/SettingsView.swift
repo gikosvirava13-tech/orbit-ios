@@ -4,16 +4,49 @@ import SwiftUI
 
 /// Destinations reachable from Settings. Modelled as a value so the whole
 /// screen is one `navigationDestination`, and so a screenshot route can push
-/// straight to any of them.
+/// straight to any of them — including the ones two levels deep.
 enum SettingsDestination: Hashable {
     case profile
-    case notifications
-    case privacy
-    case appearance
-    case dataStorage
+    case saved
     case devices
     case folders
-    case saved
+    case appearance
+    case dataStorage
+    case storage
+    case notifications
+    case privacy
+    case blocked
+    case language
+    case help
+    case about
+}
+
+/// One row in Settings, as data. Modelled rather than hand-written so the
+/// search field can filter the same list the sections are built from.
+struct SettingsEntry: Identifiable {
+    let destination: SettingsDestination
+    let title: String
+    let symbol: String
+    let tint: Color
+    var value: String?
+    var keywords: [String] = []
+
+    var id: SettingsDestination { destination }
+
+    func matches(_ query: String) -> Bool {
+        let needle = query.lowercased()
+
+        if title.lowercased().contains(needle) { return true }
+
+        return keywords.contains { $0.lowercased().contains(needle) }
+    }
+}
+
+struct SettingsGroup: Identifiable {
+    let title: String
+    let entries: [SettingsEntry]
+
+    var id: String { title }
 }
 
 public struct SettingsView: View {
@@ -23,6 +56,7 @@ public struct SettingsView: View {
     @Binding var tab: AppTab
 
     @State private var path: [SettingsDestination] = []
+    @State private var query = ""
     @State private var isEditing = false
     @State private var isShowingCode = false
     @State private var isConfirmingReset = false
@@ -34,50 +68,21 @@ public struct SettingsView: View {
     public var body: some View {
         NavigationStack(path: $path) {
             List {
-                Section {
-                    Button {
-                        // A photo picker would open here.
-                    } label: {
-                        Label("Change Profile Photo", systemImage: "camera.on.rectangle")
-                    }
-                }
-
-                Section {
-                    row(.profile, "My Profile", "person.crop.circle.fill", Color(.systemRed))
-                    row(.saved, "Saved Messages", "bookmark.fill", Color(.systemBlue))
-                }
-
-                Section {
-                    row(.folders, "Chat Folders", "folder.fill", Color(.systemCyan))
-                    row(.devices, "Devices", "laptopcomputer.and.iphone", Color(.systemOrange), value: "2")
-                }
-
-                Section {
-                    row(.notifications, "Notifications and Sounds", "bell.badge.fill", Color(.systemRed))
-                    row(.privacy, "Privacy and Security", "lock.fill", Color(.systemGray))
-                    row(.dataStorage, "Data and Storage", "cylinder.split.1x2.fill", Color(.systemGreen))
-                    row(.appearance, "Appearance", "circle.lefthalf.filled", Color(.systemBlue))
-                }
-
-                Section {
-                    LabeledContent("Chats", value: store.chats.count.formatted())
-                    LabeledContent("Missed Calls", value: store.missedCallCount.formatted())
-                    LabeledContent("Version", value: appVersion)
-                } header: {
-                    Text("About")
-                } footer: {
-                    Text("Orbit is a design study. Messages live only on this device.")
-                }
-
-                Section {
-                    Button("Reset All Settings", role: .destructive) {
-                        isConfirmingReset = true
-                    }
+                if query.isEmpty {
+                    browse
+                } else {
+                    results
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle(settings.displayName)
+            .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $query, prompt: "Search settings")
+            .overlay {
+                if !query.isEmpty, searchMatches.isEmpty {
+                    ContentUnavailableView.search(text: query)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -93,7 +98,7 @@ public struct SettingsView: View {
             .safeAreaInset(edge: .bottom) {
                 AppTabBar(selection: $tab) { tab = .chats }
             }
-            .navigationDestination(for: SettingsDestination.self) { destination($0) }
+            .navigationDestination(for: SettingsDestination.self) { destination(for: $0) }
             .sheet(isPresented: $isEditing) { EditProfileView() }
             .sheet(isPresented: $isShowingCode) { UsernameCodeSheet() }
             .confirmationDialog(
@@ -106,70 +111,281 @@ public struct SettingsView: View {
             } message: {
                 Text("Your profile, appearance, privacy and download preferences go back to their defaults.")
             }
-            .onAppear {
-                if ScreenshotRoute.current == .profile, path.isEmpty {
-                    path = [.profile]
-                }
-            }
+            .onAppear(perform: applyScreenshotRoute)
         }
     }
 
-    /// One row shape for the whole screen: a tinted glyph tile, a title, an
-    /// optional value, and a chevron — the iOS Settings idiom.
-    private func row(
-        _ destination: SettingsDestination,
-        _ title: String,
-        _ symbol: String,
-        _ tint: Color,
-        value: String? = nil
-    ) -> some View {
-        NavigationLink(value: destination) {
-            LabeledContent {
-                if let value {
-                    Text(value).foregroundStyle(Theme.secondaryLabel)
-                }
-            } label: {
-                Label {
-                    Text(title)
-                } icon: {
-                    IconTile(symbol: symbol, tint: tint)
-                }
+    // MARK: Content
+
+    @ViewBuilder
+    private var browse: some View {
+        Section {
+            heroCard.plainCardRow()
+        }
+
+        ForEach(groups) { group in
+            Section(group.title) {
+                ForEach(group.entries) { row($0) }
+            }
+        }
+
+        Section {
+            LabeledContent("Chats", value: store.chats.count.formatted())
+            LabeledContent("Missed Calls", value: store.missedCallCount.formatted())
+            LabeledContent("Version", value: Self.appVersion)
+        } header: {
+            Text("Diagnostics")
+        } footer: {
+            Text("Orbit is a design study. Messages live only on this device.")
+        }
+
+        Section {
+            Button("Reset All Settings", role: .destructive) {
+                isConfirmingReset = true
             }
         }
     }
 
     @ViewBuilder
-    private func destination(_ destination: SettingsDestination) -> some View {
-        switch destination {
-        case .profile: ProfileView()
-        case .notifications: NotificationsSettingsView()
-        case .privacy: PrivacySettingsView()
-        case .appearance: AppearanceSettingsView()
-        case .dataStorage: DataStorageSettingsView()
-        case .devices: DevicesView()
-        case .folders: ChatFoldersView()
-        case .saved: SavedMessagesView()
+    private var results: some View {
+        Section {
+            ForEach(searchMatches) { row($0) }
+        } header: {
+            Text(searchMatches.count == 1 ? "1 result" : "\(searchMatches.count) results")
         }
     }
 
-    private var appVersion: String {
+    /// Profile summary and the three things people open Settings to do.
+    /// Telegram and WhatsApp both lead with a name row; splitting the actions
+    /// into their own strip keeps that row from carrying four jobs at once.
+    private var heroCard: some View {
+        SettingsCard {
+            VStack(spacing: 14) {
+                HStack(spacing: 14) {
+                    AvatarView(peer: mePeer, size: 62, showsPresence: false)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(settings.displayName)
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(Theme.label)
+
+                        Text(settings.username)
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.secondaryLabel)
+
+                        Text(settings.phoneNumber)
+                            .font(.footnote)
+                            .foregroundStyle(Theme.tertiaryLabel)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+
+                Divider()
+
+                HStack(spacing: 0) {
+                    QuickActionButton(symbol: "person.crop.circle", title: "Profile") {
+                        path.append(.profile)
+                    }
+                    QuickActionButton(symbol: "square.and.pencil", title: "Edit") {
+                        isEditing = true
+                    }
+                    QuickActionButton(symbol: "qrcode", title: "Code") {
+                        isShowingCode = true
+                    }
+                }
+            }
+            .padding(16)
+        }
+    }
+
+    private var mePeer: Peer {
+        Peer(id: "me", name: settings.displayName, kind: .user, presence: .online)
+    }
+
+    /// One row shape for the whole screen: a tinted glyph tile, a title, an
+    /// optional value, and a chevron — the iOS Settings idiom.
+    private func row(_ entry: SettingsEntry) -> some View {
+        NavigationLink(value: entry.destination) {
+            LabeledContent {
+                if let value = entry.value {
+                    Text(value).foregroundStyle(Theme.secondaryLabel)
+                }
+            } label: {
+                Label {
+                    Text(entry.title)
+                } icon: {
+                    IconTile(symbol: entry.symbol, tint: entry.tint)
+                }
+            }
+        }
+        .accessibilityIdentifier("settings-\(entry.title)")
+    }
+
+    // MARK: Data
+
+    /// Grouped by what the user is trying to change, rather than by the order
+    /// the features happened to be built in.
+    private var groups: [SettingsGroup] {
+        [
+            SettingsGroup(title: "Account", entries: [
+                SettingsEntry(
+                    destination: .profile,
+                    title: "My Profile",
+                    symbol: "person.crop.circle.fill",
+                    tint: Color(.systemBlue),
+                    keywords: ["name", "bio", "username", "photo", "avatar"]
+                ),
+                SettingsEntry(
+                    destination: .saved,
+                    title: "Saved Messages",
+                    symbol: "bookmark.fill",
+                    tint: Color(.systemOrange),
+                    keywords: ["notes", "bookmarks", "later"]
+                ),
+                SettingsEntry(
+                    destination: .devices,
+                    title: "Devices",
+                    symbol: "laptopcomputer.and.iphone",
+                    tint: Color(.systemIndigo),
+                    value: "2",
+                    keywords: ["sessions", "desktop", "linked", "sign out"]
+                )
+            ]),
+
+            SettingsGroup(title: "Conversations", entries: [
+                SettingsEntry(
+                    destination: .folders,
+                    title: "Chat Folders",
+                    symbol: "folder.fill",
+                    tint: Color(.systemCyan),
+                    value: ChatListFilter.allCases.count.formatted(),
+                    keywords: ["filters", "groups", "channels", "unread"]
+                ),
+                SettingsEntry(
+                    destination: .appearance,
+                    title: "Appearance",
+                    symbol: "paintbrush.fill",
+                    tint: Color(.systemPink),
+                    value: settings.accent.title,
+                    keywords: ["theme", "dark", "light", "colour", "color", "wallpaper", "text size"]
+                ),
+                SettingsEntry(
+                    destination: .dataStorage,
+                    title: "Data and Storage",
+                    symbol: "internaldrive.fill",
+                    tint: Color(.systemGreen),
+                    value: StorageUsage.totalFormatted,
+                    keywords: ["cache", "download", "media", "wi-fi", "photos"]
+                )
+            ]),
+
+            SettingsGroup(title: "Alerts and Privacy", entries: [
+                SettingsEntry(
+                    destination: .notifications,
+                    title: "Notifications and Sounds",
+                    symbol: "bell.badge.fill",
+                    tint: Color(.systemRed),
+                    value: settings.notificationsEnabled ? nil : "Off",
+                    keywords: ["alerts", "badge", "sound", "vibrate", "mute", "previews"]
+                ),
+                SettingsEntry(
+                    destination: .privacy,
+                    title: "Privacy and Security",
+                    symbol: "lock.fill",
+                    tint: Color(.systemGray),
+                    keywords: ["blocked", "passcode", "last seen", "read receipts"]
+                )
+            ]),
+
+            SettingsGroup(title: "App", entries: [
+                SettingsEntry(
+                    destination: .language,
+                    title: "Language",
+                    symbol: "globe",
+                    tint: Color(.systemTeal),
+                    value: settings.language.title,
+                    keywords: ["translate", "locale", "region"]
+                ),
+                SettingsEntry(
+                    destination: .help,
+                    title: "Help",
+                    symbol: "questionmark.circle.fill",
+                    tint: Color(.systemBlue),
+                    keywords: ["faq", "support", "bug", "contact"]
+                ),
+                SettingsEntry(
+                    destination: .about,
+                    title: "About Orbit",
+                    symbol: "info.circle.fill",
+                    tint: Color(.systemGray),
+                    value: Self.appVersion,
+                    keywords: ["version", "licences", "licenses", "terms", "privacy policy"]
+                )
+            ])
+        ]
+    }
+
+    private var searchMatches: [SettingsEntry] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmed.isEmpty else { return [] }
+
+        return groups.flatMap(\.entries).filter { $0.matches(trimmed) }
+    }
+
+    @ViewBuilder
+    private func destination(for value: SettingsDestination) -> some View {
+        switch value {
+        case .profile: ProfileView()
+        case .saved: SavedMessagesView()
+        case .devices: DevicesView()
+        case .folders: ChatFoldersView()
+        case .appearance: AppearanceSettingsView()
+        case .dataStorage: DataStorageSettingsView()
+        case .storage: StorageDetailView()
+        case .notifications: NotificationsSettingsView()
+        case .privacy: PrivacySettingsView()
+        case .blocked: BlockedUsersView()
+        case .language: LanguageSettingsView()
+        case .help: HelpView()
+        case .about: AboutView()
+        }
+    }
+
+    // MARK: Screenshot routing
+
+    /// CI launches the app with `-uiRoute storage` and lands on that screen,
+    /// pushing however many levels it takes to get there.
+    private func applyScreenshotRoute() {
+        guard path.isEmpty, let route = ScreenshotRoute.current else { return }
+
+        switch route {
+        case .editProfile: isEditing = true
+        case .qrCode: isShowingCode = true
+        case .profile: path = [.profile]
+        case .saved: path = [.saved]
+        case .devices: path = [.devices]
+        case .folders: path = [.folders]
+        case .appearance: path = [.appearance]
+        case .dataStorage: path = [.dataStorage]
+        case .storage: path = [.dataStorage, .storage]
+        case .notifications: path = [.notifications]
+        case .privacy: path = [.privacy]
+        case .blocked: path = [.privacy, .blocked]
+        case .language: path = [.language]
+        case .help: path = [.help]
+        case .about: path = [.about]
+        default: break
+        }
+    }
+
+    private static var appVersion: String {
         let info = Bundle.main.infoDictionary
         let short = info?["CFBundleShortVersionString"] as? String ?? "1.0"
         let build = info?["CFBundleVersion"] as? String ?? "1"
 
         return "\(short) (\(build))"
-    }
-}
-
-struct SavedMessagesView: View {
-    var body: some View {
-        ContentUnavailableView(
-            "No Saved Messages",
-            systemImage: "bookmark",
-            description: Text("Forward messages here to keep them handy.")
-        )
-        .navigationTitle("Saved Messages")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

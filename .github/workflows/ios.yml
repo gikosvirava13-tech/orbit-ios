@@ -73,7 +73,7 @@ jobs:
         if: failure()
         run: |
           echo "::group::Errors"
-          grep -hnE "error:|fatal error:|Undefined symbol|linker command failed" \
+          grep -hnE "error:|fatal error:|Undefined symbol|linker command failed|XCTAssert" \
             xcodebuild-*.log 2>/dev/null | head -80 || echo "no error lines found"
           echo "::endgroup::"
           echo "::group::Last 60 lines"
@@ -94,7 +94,13 @@ jobs:
           APP=$(find build/Build/Products -name "Orbit.app" -maxdepth 3 | head -1)
           xcrun simctl install "$UDID" "$APP"
 
-          ROUTES="chats conversation calls contacts settings profile newChat"
+          # Every screen the app has. Keep in step with ScreenshotRoute —
+          # anything missing here simply never gets photographed.
+          ROUTES="chats conversation newChat calls contacts settings \
+                  profile editProfile qrCode \
+                  notifications privacy blocked appearance \
+                  dataStorage storage devices folders saved \
+                  language help about"
 
           for MODE in light dark; do
             xcrun simctl ui "$UDID" appearance "$MODE"
@@ -115,6 +121,46 @@ jobs:
         with:
           name: simulator-screenshots
           path: screenshots/*.png
+
+      # Screenshots cannot show the tab-bar bubble tracking a finger, or a
+      # push transition. This drives the app with a UI test while simctl
+      # records the screen, and uploads the clip.
+      - name: Record the motion tour
+        if: success()
+        run: |
+          UDID="${{ steps.sim.outputs.udid }}"
+          mkdir -p media
+          xcrun simctl ui "$UDID" appearance dark
+
+          xcrun simctl io "$UDID" recordVideo --codec h264 --force media/tour-dark.mp4 &
+          REC=$!
+          sleep 2
+
+          set +e
+          xcodebuild test \
+            -project Orbit.xcodeproj \
+            -scheme Orbit \
+            -destination "id=$UDID" \
+            -only-testing:OrbitUITests \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee xcodebuild-uitest.log | tail -n 25
+          STATUS=${PIPESTATUS[0]}
+          set -e
+
+          # recordVideo only finalises the container on SIGINT.
+          sleep 1
+          kill -INT "$REC" 2>/dev/null || true
+          wait "$REC" 2>/dev/null || true
+
+          ls -lh media || true
+          exit "$STATUS"
+
+      - name: Upload the tour video
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: motion-tour
+          path: media/*.mp4
+          if-no-files-found: warn
 
       # An unsigned device build, for sideloading onto a real iPhone.
       #
