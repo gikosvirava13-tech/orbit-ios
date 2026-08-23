@@ -84,7 +84,9 @@ public struct FloatingTabBar<Tab: Hashable>: View {
                 ?? restingX
 
             ZStack(alignment: .leading) {
-                blob(slot: slot)
+                // The rim's hue follows the blob along the bar, so sliding it
+                // turns the iridescence rather than needing a timer.
+                blob(slot: slot, hue: bubbleX / max(geo.size.width, 1))
                     .position(x: bubbleX, y: height / 2)
 
                 HStack(spacing: 0) {
@@ -114,23 +116,57 @@ public struct FloatingTabBar<Tab: Hashable>: View {
 
     /// Swells past the bar's height while held, so it bulges out of the
     /// capsule the way a droplet would rather than staying boxed inside it.
-    private func blob(slot: CGFloat) -> some View {
-        let width = min(slot - (isHeld ? 2 : 10), isHeld ? 78 : 68)
+    ///
+    /// The soap-film look comes from two things a plain fill cannot give you:
+    /// an iridescent rim, where the whole spectrum wraps around the edge and
+    /// turns as the blob moves, and a single specular highlight up in the
+    /// top-left. Both stay thin on purpose — a bubble is mostly the thing
+    /// behind it, and anything heavier here reads as a glow.
+    private func blob(slot: CGFloat, hue: CGFloat) -> some View {
+        let width = max(min(slot - (isHeld ? 2 : 10), isHeld ? 78 : 68), 44)
         let blobHeight = isHeld ? height + 6 : height - 8
+        let shape = Capsule(style: .continuous)
 
-        return Capsule(style: .continuous)
+        return shape
             // A tint over the glass, so the blob stays legible on top of the
             // bar's own glass — two identical materials would cancel out.
             .fill(Color.accentColor.opacity(0.18))
             .overlay {
-                Capsule(style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.75)
+                shape.strokeBorder(iridescence(hue: hue), lineWidth: 1.4)
+                    .opacity(isHeld ? 0.9 : 0.55)
             }
-            .frame(width: max(width, 44), height: blobHeight)
-            .liquidGlass(in: Capsule(style: .continuous), interactive: true)
+            .overlay(alignment: .topLeading) {
+                Ellipse()
+                    .fill(Color.white.opacity(isHeld ? 0.24 : 0.16))
+                    .frame(width: width * 0.42, height: blobHeight * 0.2)
+                    .blur(radius: 2.5)
+                    .offset(x: width * 0.16, y: blobHeight * 0.14)
+            }
+            .frame(width: width, height: blobHeight)
+            .liquidGlass(in: shape, interactive: true)
             .scaleEffect(x: jelly.width, y: jelly.height)
             .animation(.spring(response: 0.30, dampingFraction: 0.68), value: isHeld)
             .animation(.interactiveSpring(response: 0.16, dampingFraction: 0.70), value: jelly)
+    }
+
+    /// The full spectrum wrapped once around the edge, starting wherever the
+    /// blob currently sits. Built from the app's own palette rather than pure
+    /// RGB, so the shimmer belongs to the same colourway as everything else.
+    private func iridescence(hue: CGFloat) -> AngularGradient {
+        AngularGradient(
+            colors: [
+                Theme.aurora,
+                Theme.lagoon,
+                Theme.cobalt,
+                Theme.iris,
+                Theme.orchid,
+                Theme.coral,
+                Theme.amber,
+                Theme.aurora
+            ],
+            center: .center,
+            angle: .degrees(Double(hue) * 360)
+        )
     }
 
     private func itemLabel(_ item: Item) -> some View {

@@ -220,7 +220,17 @@ final class DemoTourTests: XCTestCase {
         return false
     }
 
+    /// The conversation hides the system navigation bar and floats its own
+    /// back pill, so the custom control is tried first and the bar second.
     private func goBack() {
+        let custom = app.buttons["back"]
+
+        if custom.exists, custom.isHittable {
+            custom.tap()
+            beat(1.1)
+            return
+        }
+
         let back = app.navigationBars.buttons.element(boundBy: 0)
 
         if back.exists {

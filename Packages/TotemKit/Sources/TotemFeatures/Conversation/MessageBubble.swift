@@ -27,7 +27,7 @@ struct MessageBubble: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
             .foregroundStyle(message.isOutgoing ? Theme.outgoingBubbleText : Theme.incomingBubbleText)
-            .background(message.isOutgoing ? AnyShapeStyle(Theme.outgoingBubble) : AnyShapeStyle(Theme.incomingBubble))
+            .background { bubbleFill }
             .clipShape(bubbleShape)
             .overlay(alignment: message.isOutgoing ? .bottomTrailing : .bottomLeading) {
                 if let reaction = message.reaction {
@@ -44,6 +44,29 @@ struct MessageBubble: View {
             if !message.isOutgoing { Spacer(minLength: 48) }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    /// Outgoing bubbles carry a light-to-nothing sheen over the accent, which
+    /// gives them a surface instead of reading as a flat swatch. Incoming ones
+    /// stay on the system fill: it is translucent, so the wallpaper pattern
+    /// shows through them rather than being blocked out.
+    @ViewBuilder
+    private var bubbleFill: some View {
+        if message.isOutgoing {
+            bubbleShape
+                .fill(Theme.outgoingBubble)
+                .overlay {
+                    bubbleShape.fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.18), Color.white.opacity(0.02)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                }
+        } else {
+            bubbleShape.fill(Theme.incomingBubble)
+        }
     }
 
     /// One squared-off corner on the sending side gives the bubble its tail

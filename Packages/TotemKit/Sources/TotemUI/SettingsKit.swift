@@ -9,9 +9,11 @@ import SwiftUI
 /// text harder to read, and this one has to work under both appearances.
 public struct WallpaperBackground: View {
     private let wallpaper: Wallpaper
+    private let showsPattern: Bool
 
-    public init(wallpaper: Wallpaper) {
+    public init(wallpaper: Wallpaper, showsPattern: Bool = true) {
         self.wallpaper = wallpaper
+        self.showsPattern = showsPattern
     }
 
     public var body: some View {
@@ -20,6 +22,10 @@ public struct WallpaperBackground: View {
 
             if !wallpaper.colors.isEmpty {
                 wallpaper.gradient.opacity(0.14)
+
+                if showsPattern, let ink = wallpaper.colors.last {
+                    DoodlePattern(tint: ink.opacity(0.16))
+                }
             }
         }
     }
@@ -44,8 +50,13 @@ public struct WallpaperSwatch: View {
                     Image(systemName: "slash.circle")
                         .font(.title3)
                         .foregroundStyle(Theme.tertiaryLabel)
+                } else {
+                    // The swatch shows the pattern too, so the picker previews
+                    // what the conversation will actually look like.
+                    DoodlePattern(tint: .white.opacity(0.3), cell: 26)
                 }
             }
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(isSelected ? Color.accentColor : Theme.separator, lineWidth: isSelected ? 2.5 : 0.5)

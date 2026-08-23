@@ -2,9 +2,18 @@ import TotemCore
 import TotemUI
 import SwiftUI
 
+/// A conversation, with the chrome floating over the wallpaper rather than
+/// sitting in bars above and below it.
+///
+/// The system navigation bar is hidden and replaced with three separate glass
+/// pieces — a back pill carrying the unread count, the title, and the avatar —
+/// so the wallpaper runs edge to edge and messages scroll underneath them. The
+/// composer is built the same way: an attach button, the field, and send, each
+/// its own floating shape with the wallpaper showing through between them.
 public struct ConversationView: View {
     @Environment(ChatStore.self) private var store
     @Environment(AppSettings.self) private var settings
+    @Environment(\.dismiss) private var dismiss
 
     private let chatID: String
 
@@ -54,7 +63,9 @@ public struct ConversationView: View {
                     }
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                // Clears the floating header, which the content scrolls under.
+                .padding(.top, 64)
+                .padding(.bottom, 8)
             }
             .defaultScrollAnchor(.bottom)
             .scrollDismissesKeyboard(.interactively)
@@ -65,31 +76,52 @@ public struct ConversationView: View {
                 }
             }
         }
-        // Only the bubbles take the Text Size setting. The bars around them
-        // keep following the system, the way Messages behaves.
+        // Only the bubbles take the Text Size setting. The chrome around them
+        // keeps following the system, the way Messages behaves.
         .dynamicTypeSize(settings.textSize.dynamicTypeSize)
         .safeAreaInset(edge: .bottom) {
             Composer { text in
                 store.send(text: text, to: chatID)
             }
         }
+        .overlay(alignment: .top) {
+            header(for: chat)
+        }
         .background {
             WallpaperBackground(wallpaper: settings.wallpaper)
                 .ignoresSafeArea()
         }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                titleView(for: chat)
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarBackButtonHidden(true)
     }
 
     private var typingAnchor: String { "typing-indicator" }
 
-    private func titleView(for chat: Chat) -> some View {
+    // MARK: Header
+
+    private func header(for chat: Chat) -> some View {
         HStack(spacing: 8) {
-            AvatarView(peer: chat.peer, size: 30, showsPresence: false)
+            Button {
+                dismiss()
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 17, weight: .semibold))
+
+                    if unreadElsewhere > 0 {
+                        Text(unreadElsewhere.formatted())
+                            .font(.subheadline.weight(.semibold))
+                            .monospacedDigit()
+                    }
+                }
+                .foregroundStyle(Color.accentColor)
+                .padding(.horizontal, unreadElsewhere > 0 ? 14 : 16)
+                .frame(height: 44)
+            }
+            .buttonStyle(.plain)
+            .liquidGlass(in: .capsule, interactive: true)
+            .accessibilityLabel("Back")
+            .accessibilityIdentifier("back")
 
             VStack(spacing: 0) {
                 Text(chat.peer.name)
@@ -101,8 +133,24 @@ public struct ConversationView: View {
                     .foregroundStyle(chat.isTyping ? Color.accentColor : Theme.secondaryLabel)
                     .lineLimit(1)
             }
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .liquidGlass(in: .capsule)
+            .accessibilityElement(children: .combine)
+
+            AvatarView(peer: chat.peer, size: 44, showsPresence: false)
         }
-        .accessibilityElement(children: .combine)
+        .liquidGlassGroup(spacing: 10)
+        .padding(.horizontal, 12)
+        .padding(.top, 4)
+    }
+
+    /// What is waiting in every other conversation — the number you are going
+    /// back to, which is why it belongs on the back button.
+    private var unreadElsewhere: Int {
+        store.chats
+            .filter { $0.id != chatID }
+            .reduce(0) { $0 + $1.unreadCount }
     }
 }
 
@@ -114,6 +162,8 @@ struct Composer: View {
     @State private var draft = ""
     @FocusState private var isFocused: Bool
 
+    private let control: CGFloat = 46
+
     private var canSend: Bool {
         !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -123,38 +173,52 @@ struct Composer: View {
             Button {
                 // Attachment picker lives here once media is supported.
             } label: {
-                Image(systemName: "plus")
-                    .font(.title3)
+                Image(systemName: "paperclip")
             }
+            .buttonStyle(GlassCircleButtonStyle(diameter: control))
             .accessibilityLabel("Attach")
 
-            TextField("Message", text: $draft, axis: .vertical)
-                .textFieldStyle(.plain)
-                .lineLimit(1 ... 5)
-                .focused($isFocused)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background {
-                    Capsule().stroke(Theme.separator, lineWidth: 1)
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField("Message", text: $draft, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .lineLimit(1 ... 5)
+                    .focused($isFocused)
+                    .accessibilityIdentifier("composer")
+
+                Button {
+                    // A sticker and emoji picker lives here.
+                } label: {
+                    Image(systemName: "face.smiling")
+                        .font(.system(size: 20))
+                        .foregroundStyle(Theme.secondaryLabel)
                 }
-                .accessibilityIdentifier("composer")
+                .buttonStyle(.plain)
+                .accessibilityLabel("Stickers")
+                .padding(.bottom, 1)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(minHeight: control)
+            .liquidGlass(in: .capsule)
 
             Button {
                 guard canSend else { return }
                 onSend(draft)
                 draft = ""
             } label: {
-                Image(systemName: canSend ? "arrow.up.circle.fill" : "mic")
-                    .font(.title2)
+                // The glyph swaps in place rather than the button changing
+                // shape, so the row never reflows as you type.
+                Image(systemName: canSend ? "arrow.up" : "mic.fill")
+                    .contentTransition(.symbolEffect(.replace))
             }
+            .buttonStyle(GlassCircleButtonStyle(diameter: control))
             .accessibilityLabel(canSend ? "Send" : "Record voice message")
             .accessibilityIdentifier("send")
         }
+        .liquidGlassGroup(spacing: 10)
+        .animation(Motion.quick, value: canSend)
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        // A plain bar material: on iOS 26 the system renders this as Liquid
-        // Glass automatically, so there is nothing bespoke to maintain.
-        .background(.bar)
+        .padding(.bottom, 6)
     }
 }
 
