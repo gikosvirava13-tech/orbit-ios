@@ -43,6 +43,11 @@ public struct FloatingTabBar<Tab: Hashable>: View {
     /// Squash and stretch, driven by drag velocity. `1 × 1` is at rest.
     @State private var jelly = CGSize(width: 1, height: 1)
 
+    /// Strength of the soap film, `0` at rest. Kept separate from `isHeld` so
+    /// it can outlive the touch: a tap is over in a few frames, and the effect
+    /// has to still be there while the blob springs to its new tab.
+    @State private var rim: Double = 0
+
     private let height: CGFloat = 58
 
     public init(
@@ -117,11 +122,14 @@ public struct FloatingTabBar<Tab: Hashable>: View {
     /// Swells past the bar's height while held, so it bulges out of the
     /// capsule the way a droplet would rather than staying boxed inside it.
     ///
-    /// The soap-film look comes from two things a plain fill cannot give you:
-    /// an iridescent rim, where the whole spectrum wraps around the edge and
-    /// turns as the blob moves, and a single specular highlight up in the
-    /// top-left. Both stay thin on purpose — a bubble is mostly the thing
-    /// behind it, and anything heavier here reads as a glow.
+    /// At rest it is only tinted glass. The soap film — an iridescent rim and
+    /// a specular highlight — belongs to the interaction: it comes up under a
+    /// finger and fades back out as the blob settles, so the bar is quiet when
+    /// nobody is touching it.
+    ///
+    /// The rim is blurred rather than drawn crisp. A hard line reads as a
+    /// stroke around a shape; a soft one reads as light bending through the
+    /// edge of a film, which is the thing being imitated.
     private func blob(slot: CGFloat, hue: CGFloat) -> some View {
         let width = max(min(slot - (isHeld ? 2 : 10), isHeld ? 78 : 68), 44)
         let blobHeight = isHeld ? height + 6 : height - 8
@@ -129,21 +137,26 @@ public struct FloatingTabBar<Tab: Hashable>: View {
 
         return shape
             // A tint over the glass, so the blob stays legible on top of the
-            // bar's own glass — two identical materials would cancel out.
-            .fill(Color.accentColor.opacity(0.18))
+            // bar's own glass — two identical materials would cancel out. It
+            // thins as the blob swells: a bigger bubble is a thinner film.
+            .fill(Color.accentColor.opacity(isHeld ? 0.10 : 0.18))
             .overlay {
-                shape.strokeBorder(iridescence(hue: hue), lineWidth: 1.4)
-                    .opacity(isHeld ? 0.9 : 0.55)
+                shape
+                    .strokeBorder(iridescence(hue: hue), lineWidth: 1)
+                    .blur(radius: 0.7)
+                    .opacity(rim * 0.55)
             }
             .overlay(alignment: .topLeading) {
                 Ellipse()
-                    .fill(Color.white.opacity(isHeld ? 0.24 : 0.16))
+                    .fill(Color.white.opacity(0.16))
                     .frame(width: width * 0.42, height: blobHeight * 0.2)
                     .blur(radius: 2.5)
                     .offset(x: width * 0.16, y: blobHeight * 0.14)
+                    .opacity(rim)
             }
             .frame(width: width, height: blobHeight)
             .liquidGlass(in: shape, interactive: true)
+            .opacity(isHeld ? 0.92 : 1)
             .scaleEffect(x: jelly.width, y: jelly.height)
             .animation(.spring(response: 0.30, dampingFraction: 0.68), value: isHeld)
             .animation(.interactiveSpring(response: 0.16, dampingFraction: 0.70), value: jelly)
@@ -217,6 +230,7 @@ public struct FloatingTabBar<Tab: Hashable>: View {
                         dragX = value.location.x
                         isHeld = true
                     }
+                    withAnimation(.easeOut(duration: 0.14)) { rim = 1 }
                 } else {
                     dragX = value.location.x
                 }
@@ -234,6 +248,9 @@ public struct FloatingTabBar<Tab: Hashable>: View {
                     isHeld = false
                     jelly = CGSize(width: 1, height: 1)
                 }
+                // Outlives the spring on purpose, so the film is still there
+                // while the blob travels to the tab you just tapped.
+                withAnimation(.easeOut(duration: 0.45)) { rim = 0 }
             }
     }
 
