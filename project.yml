@@ -44,6 +44,12 @@ targets:
     platform: iOS
     sources:
       - path: App
+    # Committed with empty values, and it optionally includes a gitignored
+    # Secrets.local.xcconfig. A build with neither still compiles and runs —
+    # it just falls back to the in-memory backend, which is what CI wants.
+    configFiles:
+      Debug: Config/Secrets.xcconfig
+      Release: Config/Secrets.xcconfig
     dependencies:
       - package: TotemKit
         product: TotemCore
@@ -56,6 +62,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.totem.app
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_CFBundleDisplayName: Totem
+        # Surfaced to the app through Info.plist. Empty in CI, which is how
+        # BackendConfiguration.fromBundle knows to return nil.
+        INFOPLIST_KEY_SupabaseProjectRef: "$(SUPABASE_PROJECT_REF)"
+        INFOPLIST_KEY_SupabaseAnonKey: "$(SUPABASE_ANON_KEY)"
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: >-
           UIInterfaceOrientationPortrait

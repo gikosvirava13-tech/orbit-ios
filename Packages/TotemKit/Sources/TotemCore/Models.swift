@@ -91,6 +91,15 @@ public struct Message: Identifiable, Hashable, Sendable {
     public var authorName: String?
     public var reaction: String?
 
+    /// Position within its conversation, assigned by the server. Zero means
+    /// "not yet acknowledged" — a message still in the outbox. Ordering and
+    /// unread counts both hang off this rather than off timestamps, which two
+    /// devices with different clocks will disagree about.
+    public var seq: Int64
+    /// Stable across retries, so a resend is recognised rather than duplicated.
+    public var clientID: String
+    public var senderID: String?
+
     public init(
         id: String = UUID().uuidString,
         text: String,
@@ -98,7 +107,10 @@ public struct Message: Identifiable, Hashable, Sendable {
         isOutgoing: Bool,
         delivery: Delivery = .sent,
         authorName: String? = nil,
-        reaction: String? = nil
+        reaction: String? = nil,
+        seq: Int64 = 0,
+        clientID: String = UUID().uuidString,
+        senderID: String? = nil
     ) {
         self.id = id
         self.text = text
@@ -107,7 +119,13 @@ public struct Message: Identifiable, Hashable, Sendable {
         self.delivery = delivery
         self.authorName = authorName
         self.reaction = reaction
+        self.seq = seq
+        self.clientID = clientID
+        self.senderID = senderID
     }
+
+    /// Waiting in the outbox: composed locally, not yet given a sequence.
+    public var isPending: Bool { seq == 0 && isOutgoing }
 }
 
 // MARK: - Chat

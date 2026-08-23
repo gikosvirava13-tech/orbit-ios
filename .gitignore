@@ -12,3 +12,6 @@ xcuserdata/
 # SwiftPM
 .build/
 Package.resolved
+
+# Local server credentials
+Config/Secrets.local.xcconfig
