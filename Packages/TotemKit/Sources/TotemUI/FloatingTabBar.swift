@@ -48,6 +48,13 @@ public struct FloatingTabBar<Tab: Hashable>: View {
     /// has to still be there while the blob springs to its new tab.
     @State private var rim: Double = 0
 
+    /// Ties the blob to itself across slots so the system can morph it.
+    @Namespace private var glassNamespace
+
+    /// An instance constant, not a static one: Swift does not allow stored
+    /// static properties on a generic type, and this view is generic over Tab.
+    private let blobID = "tab-selection"
+
     private let height: CGFloat = 58
 
     public init(
@@ -85,20 +92,27 @@ public struct FloatingTabBar<Tab: Hashable>: View {
         GeometryReader { geo in
             let slot = geo.size.width / CGFloat(max(items.count, 1))
             let restingX = slot * (CGFloat(selectedIndex) + 0.5)
-            let bubbleX = dragX.map { $0.clamped(to: slot / 2 ... geo.size.width - slot / 2) }
-                ?? restingX
+            let fingerX = dragX.map { $0.clamped(to: slot / 2 ... geo.size.width - slot / 2) }
 
-            ZStack(alignment: .leading) {
-                // The rim's hue follows the blob along the bar, so sliding it
-                // turns the iridescence rather than needing a timer.
-                blob(slot: slot, hue: bubbleX / max(geo.size.width, 1))
-                    .position(x: bubbleX, y: height / 2)
+            // The blob belongs to whichever slot is selected — that is what
+            // gives it a new identity to morph into. While a finger is down it
+            // is then offset away from that slot to stay under the touch, and
+            // because the offset is measured from the slot, selection changing
+            // mid-drag leaves the blob exactly where the finger is.
+            let travel = (fingerX ?? restingX) - restingX
 
-                HStack(spacing: 0) {
-                    ForEach(items) { item in
+            HStack(spacing: 0) {
+                ForEach(items) { item in
+                    ZStack {
+                        if item.id == selection {
+                            blob(slot: slot, hue: (fingerX ?? restingX) / max(geo.size.width, 1))
+                                .offset(x: travel)
+                                .liquidGlassID(blobID, in: glassNamespace)
+                        }
+
                         itemLabel(item)
-                            .frame(width: slot, height: height)
                     }
+                    .frame(width: slot, height: height)
                 }
             }
             .contentShape(.rect)
@@ -238,8 +252,14 @@ public struct FloatingTabBar<Tab: Hashable>: View {
                 jelly = Self.jelly(forSpeed: value.velocity.width)
 
                 let index = Int(value.location.x / slot).clamped(to: 0 ... items.count - 1)
+
                 if items[index].id != selection {
-                    selection = items[index].id
+                    // Wrapped on purpose: the glass morph only runs inside an
+                    // animation. Change the selection outside one and the blob
+                    // teleports to the next slot with no deformation at all.
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
+                        selection = items[index].id
+                    }
                 }
             }
             .onEnded { _ in

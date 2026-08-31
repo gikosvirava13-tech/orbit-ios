@@ -29,6 +29,27 @@ public extension View {
             self
         }
     }
+
+    /// Gives a glass view an identity that survives moving between places in
+    /// the hierarchy, so the system morphs it rather than fading one out and
+    /// another in.
+    ///
+    /// This is the effect Apple's own tab bars have: the shape stretches out
+    /// of where it was and pinches into where it is going, like a droplet
+    /// crossing a surface. It only happens when the view genuinely appears
+    /// somewhere new inside an animation — a single view sliding via `offset`
+    /// or `position` can never produce it, however it is animated.
+    ///
+    /// Before iOS 26 this falls back to `matchedGeometryEffect`, which travels
+    /// between the same two points without the fluid deformation.
+    @ViewBuilder
+    func liquidGlassID(_ id: some Hashable, in namespace: Namespace.ID) -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffectID(id, in: namespace)
+        } else {
+            self.matchedGeometryEffect(id: id, in: namespace)
+        }
+    }
 }
 
 // MARK: - Buttons
